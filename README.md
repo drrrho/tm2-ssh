@@ -8,7 +8,7 @@ TM2::SSH - TempleScript extension for SSH
 
 # DESCRIPTION
 
-to-be-written
+@@@
 
 # AUTHOR
 
