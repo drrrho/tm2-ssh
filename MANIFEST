@@ -1,0 +1,9 @@
+Build.PL
+Changes
+lib/TM2/SSH.pm
+ontologies/ssh-bg.atm
+ontologies/ssh.ts
+MANIFEST			This list of files
+README.md
+MYMETA.json
+MYMETA.yml
