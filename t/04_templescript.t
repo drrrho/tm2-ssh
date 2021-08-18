@@ -10,7 +10,7 @@ use TM2::TempleScript::Test;
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
-use constant DONE => 0;
+use constant DONE => 1;
 
 sub _chomp {
     my $s = shift;
@@ -136,7 +136,7 @@ return
 
 }
 
-if (1||DONE) {
+if (DONE) {
     my $AGENDA = q{computed factory in junction, execute: };
 
     use IO::Async::Loop;
