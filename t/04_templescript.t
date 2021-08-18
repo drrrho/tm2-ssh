@@ -10,7 +10,7 @@ use TM2::TempleScript::Test;
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
-use constant DONE => 1;
+use constant DONE => 0;
 
 sub _chomp {
     my $s = shift;
@@ -37,8 +37,8 @@ sub _parse {
     my $tm = TM2::Materialized::TempleScript->new (baseuri => 'tm:')
 	->extend ('TM2::ObjectAble')
 	->establish_storage ('*/*' => {})
-	->extend ('TM2::ImplementAble')
 	->extend ('TM2::Executable')
+	->extend ('TM2::ImplementAble')
 	;
 
     $tm->deserialize ($t);
@@ -55,8 +55,8 @@ sub _mk_ctx {
 
 
 use TM2::TempleScript::Parser;
-#$TM2::TempleScript::Parser::UR_PATH = '/usr/share/templescript/ontologies/';
-$TM2::TempleScript::Parser::UR_PATH = '../templescript/ontologies/';
+$TM2::TempleScript::Parser::UR_PATH = '/usr/share/templescript/ontologies/';
+#$TM2::TempleScript::Parser::UR_PATH = '../templescript/ontologies/';
 
 unshift  @TM2::TempleScript::Parser::TS_PATHS, './ontologies/';
 use TM2::Materialized::TempleScript;
@@ -136,41 +136,102 @@ return
 
 }
 
-
-
-if (0&& DONE) {
-    my $AGENDA = q{ssh inside junction: };
+if (1||DONE) {
+    my $AGENDA = q{computed factory in junction, execute: };
 
     use IO::Async::Loop;
     my $loop = IO::Async::Loop->new;
+
+    my $ap = new TM2::TempleScript::Parser ();                          # quickly clone a parser
 
     my $tm = _parse (q{
 
 %include file:ssh.ts
 
-do-ssh isa ts:stream
-return
-   ( "'XXX;'" )
-
 });
 
-    my $ctx = _mk_ctx (TM2::TempleScript::Stacked->new (orig => $tm));
-    $ctx = [ @$ctx, { '$loop' => $loop } ];
-#--
-    my $ts;
+    my $ts = [];
 
+    my $ctx = _mk_ctx (TM2::TempleScript::Stacked->new (orig => $tm, upstream =>
+                       TM2::TempleScript::Stacked->new (orig => $env)
+                       ));
+    $ctx = [ @$ctx, { '$loop' => $loop, '$tss' => $ts } ];
+#--
+    @$ts = ();
     if (1) {
 	{
-	    (my $ss, $ts) = $tm->execute ($ctx);
-	    $loop->watch_time( after => 5, code => sub { diag "stopping timeout " if $warn; push @$ss, bless [], 'ts:collapse'; } );
+	    my $cpr = $ap->parse_query (q{ 
+   ( "'XXX';", "'YYY';" ) | zigzag
+ |-{
+     count | ( "localhost" ) |->> ts:fusion( ssh:connection ) => $ssh
+ ||><||
+     <<- now | @ $ssh |->> io:write2log
+ }-| demote |->> ts:tap( $tss )
+
+ }, $tm->stack);
+	    (my $ss, undef) = TM2::TempleScript::PE::pe2pipe ($ctx, $cpr);
+	    $loop->watch_time( after => 3, code => sub { diag "stopping stream " if $warn; push @$ss, bless [], 'ts:collapse'; } );
+	    $loop->watch_time( after => 4, code => sub { diag "stopping loop "   if $warn; $loop->stop; } );
+	    push @$ss, bless [], 'ts:kickoff';
 	}
-	$loop->watch_time( after => 7, code => sub { diag "stopping loop " if $warn; $loop->stop; } );
 	$loop->run;
 
-warn Dumper $ts;
+#warn Dumper $ts; exit;
+	is_singleton( $ts, undef, $AGENDA.'ssh single');
+	my $ts2 = $ts->[0]->[0];
+	ok( scalar @$ts2 == 2, $AGENDA.'both went through');
+	ok(eq_array ([ map { $_->[0]->[0] } @$ts2 ], [ qw(XXX YYY) ]), $AGENDA.'content');
+    }
+#--
+    @$ts = ();
+    if (1) {
+	{
+	    my $cpr = $ap->parse_query (q{ 
+   ( "'XXX';", "'YYY';" ) | zigzag
+ |-{
+     count | ( "localhost" ) |->> ts:fusion( ssh:connection ) => $ssh
+ ||><||
+     <- now |_1_| @ $ssh |->> io:write2log
+ }-| demote |->> ts:tap( $tss )
+
+ }, $tm->stack);
+	    (my $ss, undef) = TM2::TempleScript::PE::pe2pipe ($ctx, $cpr);
+	    $loop->watch_time( after => 3, code => sub { diag "stopping stream " if $warn; push @$ss, bless [], 'ts:collapse'; } );
+	    $loop->watch_time( after => 4, code => sub { diag "stopping loop "   if $warn; $loop->stop; } );
+	    push @$ss, bless [], 'ts:kickoff';
+	}
+	$loop->run;
+#warn Dumper $ts; exit;
+	ok( scalar @$ts == 2, $AGENDA.'both went through');
+	is_singleton( $ts->[0]->[0], TM2::Literal->new('XXX'), $AGENDA.'ssh single');
+	is_singleton( $ts->[1]->[0], TM2::Literal->new('YYY'), $AGENDA.'ssh single');
+    }
+#--
+    @$ts = ();
+    if (1) {
+	{
+	    my $cpr = $ap->parse_query (q{ 
+   ( "qx[ls]" )
+ |-{
+     count | ( "localhost" ) |->> ts:fusion( ssh:connection ) => $ssh
+ ||><||
+     <- now | @ $ssh
+ }-|->> ts:tap( $tss )
+
+ }, $tm->stack);
+	    (my $ss, undef) = TM2::TempleScript::PE::pe2pipe ($ctx, $cpr);
+	    $loop->watch_time( after => 3, code => sub { diag "stopping stream " if $warn; push @$ss, bless [], 'ts:collapse'; } );
+	    $loop->watch_time( after => 4, code => sub { diag "stopping loop "   if $warn; $loop->stop; } );
+	    push @$ss, bless [], 'ts:kickoff';
+	}
+	$loop->run;
+	is_singleton( $ts, undef, $AGENDA.'ssh single');
+	like( $ts->[0]->[0]->[0], qr/Download/, $AGENDA.'ls remote');
+#warn Dumper $ts; exit;
     }
 
 }
+
 
 done_testing;
 

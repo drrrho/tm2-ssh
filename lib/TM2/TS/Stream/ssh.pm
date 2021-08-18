@@ -12,7 +12,7 @@ has 'loop' => (
 
 has 'address' => (
     is        => 'rw',
-    isa       => 'Str',
+    isa       => 'TM2::Literal',
     );
 
 around 'BUILDARGS' => sub {
@@ -25,7 +25,7 @@ around 'BUILDARGS' => sub {
         return $class->$orig (@_);
     } else {
         my $addr = shift;
-        return $class->$orig ({ address => $addr->[0], @_ });
+        return $class->$orig ({ address => $addr, @_ });
     }
 };
 
@@ -33,7 +33,7 @@ sub prime {
     my $self = shift;
     my $out = [];
 
-    tie @$out, 'TM2::TS::Stream::ssh', $self->loop, $self->address, @_;
+    tie @$out, 'TM2::TS::Stream::ssh', $self->loop, $self->address->[0], @_;
     return $out;
 }
 
@@ -94,8 +94,11 @@ sub TIEARRAY {
 
 sub DESTROY {
     my $elf = shift;
+#warn "DESTROY";
     return unless $$ == $elf->{creator};
+#warn "DESTROY ssh $elf waiting";
     $elf->{loop}->await( $elf->{stopper} ) if $elf->{stopper};                                      # we do not give up that easily
+#warn "DESTROY really";
     if ($elf->{ssh}) {
 	$elf->{loop}->remove( $elf->{ssh} );
 	undef $elf->{ssh};
@@ -109,13 +112,16 @@ sub FETCH {
 
 sub PUSH {
     my $elf = shift;
-#warn "ssh PUSH ".Dumper \@_;
     my @block = @_;
+#warn "ssh PUSH ".Dumper \@block;
 
     my $tail = $elf->{tail}; # handle
 
     if (ref ($_[0]) eq 'ts:collapse') {
-	$elf->{stopper}->done;                                                             # allow self DESTROY
+	$elf->{stopper}->done unless $elf->{stopper}->is_done;
+
+    } elsif (ref ($_[0]) eq 'ts:disable') {
+	$elf->{stopper}->done unless $elf->{stopper}->is_done;
 
     } else {
 	$elf->{stopper} //= $elf->{loop}->new_future;
@@ -130,13 +136,15 @@ sub PUSH {
 		args      => \@params,
 		on_result => sub {
 #warn "result".Dumper \@_;
-			       push @$block, [ map { TM2::Literal->new( $_ ) } @_ ];       # collect the intermediate results in the block
+		    my $s = join "", @_;
+		    push @$block, [ TM2::Literal->new( $s ) ];                            # collect the intermediate results in the block
 #warn "-> block ".Dumper $block;
-			       push @$tail, @$block if scalar @$block >= scalar @block;    # if we have as many responses as commands, we can push downstream
-		             },
+		    if (scalar @$block >= scalar @block) {                                # if we have as many responses as commands, we can push downstream
+			push @$tail, @$block;
+		    }
+		},
 	    );
 	}
-#warn "block ".Dumper $block;
     }
 }
 

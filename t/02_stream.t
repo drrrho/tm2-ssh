@@ -37,17 +37,17 @@ if (DONE) {
     use TM2::TS::Stream::ssh;
 
     {
-	my $cc = TM2::TS::Stream::ssh::factory->new (loop => $loop, address => 'localhost');
+	my $cc = TM2::TS::Stream::ssh::factory->new (loop => $loop, address => TM2::Literal->new( 'localhost' ));
 	isa_ok( $cc->loop, 'IO::Async::Loop');
-	is( $cc->address, 'localhost', $AGENDA.'address' );
+	is( $cc->address->[0], 'localhost', $AGENDA.'address' );
     }
     {
-	my $cc = TM2::TS::Stream::ssh::factory->new ('rho@somehost.com', loop => $loop);
+	my $cc = TM2::TS::Stream::ssh::factory->new (TM2::Literal->new( 'rho@somehost.com' ), loop => $loop);
 	isa_ok( $cc->loop, 'IO::Async::Loop');
-	is( $cc->address, 'rho@somehost.com', $AGENDA.'address' );
+	is( $cc->address->[0], 'rho@somehost.com', $AGENDA.'address' );
     }
     if (1) {
-	my $cc = TM2::TS::Stream::ssh::factory->new ('localhost', loop => $loop);
+	my $cc = TM2::TS::Stream::ssh::factory->new (TM2::Literal->new( 'localhost' ), loop => $loop);
         my $t = [];
         my $c = $cc->prime ($t);
 	isa_ok( tied @$c, 'TM2::TS::Stream::ssh', $AGENDA.'stream type');
@@ -64,7 +64,7 @@ if (DONE) {
 
     }
     if (1) {
-	my $cc = TM2::TS::Stream::ssh::factory->new ('localhost', loop => $loop);
+	my $cc = TM2::TS::Stream::ssh::factory->new (TM2::Literal->new( 'localhost' ), loop => $loop);
         my $t = [];
         my $c = $cc->prime ($t);
 	isa_ok( tied @$c, 'TM2::TS::Stream::ssh', $AGENDA.'stream type');
@@ -80,7 +80,7 @@ if (DONE) {
 	is_singleton ($t, TM2::Literal->new( "YYY" ), $AGENDA.'result with single tuple, no params');
     }
     if (1) {
-	my $cc = TM2::TS::Stream::ssh::factory->new ('localhost', loop => $loop);
+	my $cc = TM2::TS::Stream::ssh::factory->new (TM2::Literal->new( 'localhost' ), loop => $loop);
         my $t = [];
         my $c = $cc->prime ($t);
 	isa_ok( tied @$c, 'TM2::TS::Stream::ssh', $AGENDA.'stream type');
