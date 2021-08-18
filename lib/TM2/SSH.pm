@@ -19,7 +19,45 @@ our $VERSION = '0.01';
 
 =head1 DESCRIPTION
 
-@@@
+This TempleScript extension provides a vehicle to execute Perl code on a remote machine. When I write "Perl code" here, then
+this also implies "shell code", as it is easy to invoke a shell capture from Perl:
+
+    qx[ls -al]      # also known as "backtick"
+
+Obviously, there are three phases: First open the SSH connection to the remote machine, then execute
+one or more Perl code fragments (the results will be delivered back), then let the SSH connection go
+away. This is easily achieved with a *junction*:
+
+       ( "qx[ls]" )           # the shell command to be execute
+     |-{
+         ( "localhost" ) |->> ts:fusion( ssh:connection ) => $ssh
+     ||><||                   # signals to TS that the following is not automatically collapsing
+         <- now | @ $ssh
+     }-|->> io:write2log
+
+In the above case we use a single string as incoming block. For this block first the SSH connection
+will be erected using the *ts:fusion* function. Once that is established that small block is also
+pushed into second stage. It will pass unharmed the "now disabler" and will move into the $ssh
+stream handler.
+
+Hereby a single tuple will be interpreted as such, that the first value is used as Perl code, the
+other values of the tuples as optional arguments:
+
+   ( "open FILE, '>', $_[0]; print FILE $_[1]; close FILE;",
+     "foo.txt",
+     "Hello, world!" )
+
+   ( "unlink", "foo.txt" )
+
+Any result of a single Perl code will be returned as ONE string, even if there are several lines.
+
+The "now" disabler takes care that the SSH connection is only used for that one incoming block. Any
+later blocks would open a new connection. One can use TempleScript's mechanism to maintain
+long-living SSH connections, either by increasing the scope of the variable $ssh; or by not
+disabling the $ssh stream.
+
+If you pass in a block of several tuples into $ssh, then the individual tuples will be executed
+separately; but the conherence of the block on the outgoing side will be maintained.
 
 =head1 AUTHOR
 
