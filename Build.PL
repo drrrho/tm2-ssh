@@ -14,7 +14,7 @@ my $debian = Module::Build->subclass(
     code => <<'SUBCLASS' );
 
 sub DEBVERSION {
-    return 1;
+    return 2;
 }
 
 sub ACTION_cpan_upload {
