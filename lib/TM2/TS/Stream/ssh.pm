@@ -25,7 +25,7 @@ around 'BUILDARGS' => sub {
         return $class->$orig (@_);
     } else {
         my $addr = shift;
-        return $class->$orig ({ address => $addr, @_ });
+        return $class->$orig ({ address => $addr->[0], @_ });
     }
 };
 
