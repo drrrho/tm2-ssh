@@ -92,7 +92,7 @@ if (DONE) {
 	is_singleton( $tss, undef, $AGENDA.'single factory');
 	my $cc = $tss->[0]->[0];
 	isa_ok( $cc, 'TM2::TS::Stream::ssh::factory');
-	is( $cc->address, 'localhost', $AGENDA.'target address');
+	is( $cc->address->[0], 'localhost', $AGENDA.'target address');
 	isa_ok( $cc->loop, 'IO::Async::Loop');
 #warn Dumper $tss; exit;
     }
@@ -114,7 +114,7 @@ return
 
 });
 
-    my $cc = TM2::TS::Stream::ssh::factory->new (loop => $loop, address => 'localhost');
+    my $cc = TM2::TS::Stream::ssh::factory->new (loop => $loop, address => TM2::Literal->new( 'localhost' ));
     my $ts = [];
 
     my $ctx = _mk_ctx (TM2::TempleScript::Stacked->new (orig => $tm, upstream =>
