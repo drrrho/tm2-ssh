@@ -215,7 +215,7 @@ if (DONE) {
  |-{
      count | ( "localhost" ) |->> ts:fusion( ssh:connection ) => $ssh
  ||><||
-     <- now | @ $ssh
+     <<- now | @ $ssh
  }-|->> ts:tap( $tss )
 
  }, $tm->stack);
