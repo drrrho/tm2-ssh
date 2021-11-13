@@ -32,13 +32,17 @@ $TM2::log->level($warn ? $DEBUG : $ERROR); # one of DEBUG, INFO, WARN, ERROR, FA
 use TM2::TempleScript;
 
 sub _parse {
+    my $ref_stm = shift;
     my $t = shift;
+
     use TM2::Materialized::TempleScript;
     my $tm = TM2::Materialized::TempleScript->new (baseuri => 'tm:')
 	->extend ('TM2::ObjectAble')
 	->establish_storage ('*/*' => {})
 	->extend ('TM2::Executable')
 	->extend ('TM2::ImplementAble')
+	->extend( 'TM2::StackAble' )
+	    ->stack_under( $ref_stm )
 	;
 
     $tm->deserialize ($t);
@@ -55,16 +59,25 @@ sub _mk_ctx {
 
 
 use TM2::TempleScript::Parser;
-$TM2::TempleScript::Parser::UR_PATH = '/usr/share/templescript/ontologies/';
-#$TM2::TempleScript::Parser::UR_PATH = '../templescript/ontologies/';
+#$TM2::TempleScript::Parser::UR_PATH = '/usr/share/templescript/ontologies/';
+$TM2::TempleScript::Parser::UR_PATH = '../templescript/ontologies/';
 
 unshift  @TM2::TempleScript::Parser::TS_PATHS, './ontologies/';
-use TM2::Materialized::TempleScript;
-my $env = TM2::Materialized::TempleScript->new (
-                     file => $TM2::TempleScript::Parser::UR_PATH . 'env.ts',                # then the processing map
-                     baseuri => 'ts:')
-    ->extend ('TM2::ObjectAble')
+my $core = TM2::Materialized::TempleScript->new (
+    file    => $TM2::TempleScript::Parser::UR_PATH . 'core.ts',
+    baseuri => 'ts:')
+        ->extend ('TM2::ObjectAble')
+        ->extend ('TM2::ImplementAble')
     ->sync_in;
+my $env = TM2::Materialized::TempleScript->new (
+    file    => $TM2::TempleScript::Parser::UR_PATH . 'env.ts',
+    baseuri => 'ts:')
+        ->extend ('TM2::ObjectAble')
+        ->extend ('TM2::ImplementAble')
+    ->sync_in;
+
+my $sco = TM2::TempleScript::Stacked->new (orig => $core, id => 'ts:core');
+my $sen = TM2::TempleScript::Stacked->new (orig => $env,  id => 'ts:environment', upstream => $sco);
 
 require_ok( 'TM2::TS::Stream::ssh' );
 
@@ -74,13 +87,14 @@ if (DONE) {
     use IO::Async::Loop;
     my $loop = IO::Async::Loop->new;
 
-    my $tm = _parse (q{
+    my $stm = $sen;
+    my $tm = _parse (\$stm, q{
 
 %include file:ssh.ts
 
 });
 
-    my $ctx = _mk_ctx (TM2::TempleScript::Stacked->new (orig => $tm));
+    my $ctx = _mk_ctx ($stm);
     $ctx = [ @$ctx, { '$loop' => $loop } ];
 #--
     my $tss;
@@ -104,7 +118,8 @@ if (DONE) {
     use IO::Async::Loop;
     my $loop = IO::Async::Loop->new;
 
-    my $tm = _parse (q{
+    my $stm = $sen;
+    my $tm = _parse (\$stm, q{
 
 %include file:ssh.ts
 
@@ -117,9 +132,7 @@ return
     my $cc = TM2::TS::Stream::ssh::factory->new (loop => $loop, address => TM2::Literal->new( 'localhost' ));
     my $ts = [];
 
-    my $ctx = _mk_ctx (TM2::TempleScript::Stacked->new (orig => $tm, upstream =>
-                       TM2::TempleScript::Stacked->new (orig => $env)
-                       ));
+    my $ctx = _mk_ctx ($stm);
     $ctx = [ @$ctx, { '$loop' => $loop, '$ssh' => $cc, '$tss' => $ts } ];
 #--
     if (1) {
@@ -144,7 +157,8 @@ if (DONE) {
 
     my $ap = new TM2::TempleScript::Parser ();                          # quickly clone a parser
 
-    my $tm = _parse (q{
+    my $stm = $sen;
+    my $tm = _parse (\$stm, q{
 
 %include file:ssh.ts
 
@@ -152,9 +166,7 @@ if (DONE) {
 
     my $ts = [];
 
-    my $ctx = _mk_ctx (TM2::TempleScript::Stacked->new (orig => $tm, upstream =>
-                       TM2::TempleScript::Stacked->new (orig => $env)
-                       ));
+    my $ctx = _mk_ctx ($stm);
     $ctx = [ @$ctx, { '$loop' => $loop, '$tss' => $ts } ];
 #--
     @$ts = ();
