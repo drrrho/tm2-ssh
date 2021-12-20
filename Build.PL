@@ -35,11 +35,12 @@ sub ACTION_debian {
     my $self = shift;
 
     $self->depends_on("README");
+    $self->depends_on("dist");
     $self->depends_on("distdir");
 
     my $version = $self->dist_version;
     my $debversion = $self->DEBVERSION;
-    $self->do_system(qq{   dh-make-perl --build --version=$version-$debversion TM2-SSH-$version } );
+    $self->do_system(qq{DEB_BUILD_OPTIONS=nocheck   dh-make-perl --build --version=$version-$debversion TM2-SSH-$version } );
 }
 
 sub ACTION_inject {
