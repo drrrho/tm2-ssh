@@ -19,14 +19,14 @@ away. This is easily achieved with a _junction_:
 
        ( "qx[ls]" )           # the shell command to be execute
      |-{
-         ( "localhost" ) |->> ts:fusion( ssh:connection ) => $ssh
+         ( "localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
      ||><||                   # signals to TS that the following is not automatically collapsing
-         <- now | @ $ssh
+         <- 2 sec | @ $ssh
      }-|->> io:write2log
 
 In the above case we use a single string as incoming block. For this block first the SSH connection
 will be erected using the `ts:fusion` function. Once that is established that small block is also
-pushed into second stage. It will pass unharmed the `now` disabler and will move into the `$ssh`
+pushed into second stage. It will pass unharmed the `2 seconds` disabler and will move into the `$ssh`
 stream handler.
 
 Hereby a single tuple will be interpreted as such, that the first value is used as Perl code, the
@@ -40,13 +40,15 @@ other values of the tuples as optional arguments:
 
 Any result of a single Perl code will be returned as ONE string, even if there are several lines.
 
-The `now` disabler takes care that the SSH connection is only used for that one incoming block. Any
-later blocks would open a new connection. One can use TempleScript's mechanism to maintain
-long-living SSH connections, either by increasing the scope of the variable `$ssh`; or by not
-disabling the $ssh stream.
+The `2 seconds` disabler takes care that the SSH connection is only used for incoming blocks within
+these 2 seconds. Any later blocks would open a new connection. One can use TempleScript's mechanism
+to maintain long-living SSH connections, either by increasing the scope of the variable `$ssh`; or
+by not disabling the $ssh stream.
 
 If you pass in a block of several tuples into `$ssh`, then the individual tuples will be executed
 separately; but the coherence of the block on the outgoing side will be maintained.
+
+@@@ what happens with errors
 
 # AUTHOR
 
