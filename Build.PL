@@ -79,7 +79,8 @@ my $builder = $debian->new(
     install_path        => { 'ontologies' => '/usr/share/templescript/ontologies',
     },
     onto_files          => {
-        'ontologies/ssh.ts' => 'ontologies/ssh.ts'
+        'ontologies/ssh.ts'     => 'ontologies/ssh.ts',
+        'ontologies/ssh-bg.atm' => 'ontologies/ssh-bg.atm'
     },
 );
 
