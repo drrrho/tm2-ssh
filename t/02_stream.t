@@ -247,10 +247,6 @@ if (DONE) {
     }
 }
 
-done_testing;
-
-__END__
-
 
 if (DONE) {
     my $AGENDA = q{socket errors: };

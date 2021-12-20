@@ -56,8 +56,6 @@ sub _mk_ctx {
 
 #-- TESTS ----------------------------------------------------------
 
-
-
 use TM2::TempleScript::Parser;
 #$TM2::TempleScript::Parser::UR_PATH = '/usr/share/templescript/ontologies/';
 $TM2::TempleScript::Parser::UR_PATH = '../templescript/ontologies/';
@@ -146,7 +144,6 @@ return
 	is_singleton( $ts, TM2::Literal->new( 'XXX' ), $AGENDA.'ssh response');
 #warn Dumper $ts;
     }
-
 }
 
 if (DONE) {
@@ -243,7 +240,6 @@ if (DONE) {
     }
 
 }
-
 
 done_testing;
 

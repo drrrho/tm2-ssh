@@ -46,7 +46,7 @@ long-living SSH connections, either by increasing the scope of the variable `$ss
 disabling the $ssh stream.
 
 If you pass in a block of several tuples into `$ssh`, then the individual tuples will be executed
-separately; but the conherence of the block on the outgoing side will be maintained.
+separately; but the coherence of the block on the outgoing side will be maintained.
 
 # AUTHOR
 
