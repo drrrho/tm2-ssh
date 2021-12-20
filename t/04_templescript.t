@@ -25,6 +25,10 @@ unless ($warn) {
     select (STDERR); $| = 1;
 }
 
+use lib '../tm2_dbi/lib';
+use lib '../tm2-base/lib';
+use lib '../templescript/lib';
+
 use TM2;
 use Log::Log4perl::Level;
 $TM2::log->level($warn ? $DEBUG : $ERROR); # one of DEBUG, INFO, WARN, ERROR, FATAL
@@ -238,7 +242,80 @@ if (DONE) {
 	like( $ts->[0]->[0]->[0], qr/Download/, $AGENDA.'ls remote');
 #warn Dumper $ts; exit;
     }
+}
 
+
+if (DONE) {
+    my $AGENDA = q{problems with connections: };
+
+    use IO::Async::Loop;
+    my $loop = IO::Async::Loop->new;
+
+    my $ap = new TM2::TempleScript::Parser ();                          # quickly clone a parser
+
+    my $stm = $sen;
+    my $tm = _parse (\$stm, q{
+
+%include file:ssh.ts
+
+});
+
+    my $ts = [];
+
+    my $ctx = _mk_ctx ($stm);
+    $ctx = [ @$ctx, { '$loop' => $loop, '$tss' => $ts } ];
+#--
+    @$ts = ();
+    if (1) {
+	{
+	    my $cpr = $ap->parse_query (q{ 
+   ( "'XXX';", "'YYY';" ) | zigzag
+ |-{
+     count | ( "ssh://;optional=1@xxxlocalhost",
+               "localhost" )
+           |->> ts:fusion( ssh:pool ) => $ssh
+ ||><||
+     <<- 2 sec | @ $ssh |->> io:write2log
+ }-| demote |->> ts:tap( $tss )
+
+ }, $tm->stack);
+	    (my $ss, undef) = TM2::TempleScript::PE::pe2pipe ($ctx, $cpr);
+	    $loop->watch_time( after => 4, code => sub { diag "stopping stream " if $warn; push @$ss, bless [], 'ts:collapse'; } );
+	    $loop->watch_time( after => 5, code => sub { diag "stopping loop "   if $warn; $loop->stop; } );
+	    push @$ss, bless [], 'ts:kickoff';
+	}
+	$loop->run;
+#warn Dumper $ts; exit;
+	is_singleton( $ts, undef, $AGENDA.'ssh single, optional');
+	my $ts2 = $ts->[0]->[0];
+	ok( scalar @$ts2 == 2, $AGENDA.'both went through, optional');
+	ok(eq_array ([ map { $_->[0]->[0] } @$ts2 ], [ qw(XXX YYY) ]), $AGENDA.'content, optional');
+    }
+#--
+    @$ts = ();
+    if (1) {
+	{
+	    my $cpr = $ap->parse_query (q{ 
+   ( "'XXX';", "'YYY';" ) | zigzag
+ |-{
+     count | ( "ssh://;optional=0@xxxlocalhost",
+               "localhost" )
+           |->> ts:fusion( ssh:pool ) => $ssh
+ ||><||
+     <<- 2 sec | @ $ssh |->> io:write2log
+ }-| demote |->> ts:tap( $tss )
+
+ }, $tm->stack);
+	    (my $ss, undef) = TM2::TempleScript::PE::pe2pipe ($ctx, $cpr);
+	    $loop->watch_time( after => 4, code => sub { diag "stopping stream " if $warn; push @$ss, bless [], 'ts:collapse'; } );
+	    $loop->watch_time( after => 5, code => sub { diag "stopping loop "   if $warn; $loop->stop; } );
+	    push @$ss, bless [], 'ts:kickoff';
+	}
+	throws_ok {
+	    $loop->run;
+	} qr/escalat/, $AGENDA.'detected connection problem';
+	$loop->run;
+    }
 }
 
 done_testing;
