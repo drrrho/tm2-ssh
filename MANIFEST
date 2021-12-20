@@ -3,7 +3,7 @@ Changes
 ontologies/ssh-bg.atm
 ontologies/ssh.ts
 lib/TM2/SSH.pm
-lib/TM2/TS/Stream/ssh.pm
+lib/TM2/TS/Stream/ssh_s.pm
 t/02_stream.t
 t/04_templescript.t
 MANIFEST			This list of files

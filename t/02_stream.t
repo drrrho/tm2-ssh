@@ -22,10 +22,158 @@ use TM2;
 use Log::Log4perl::Level;
 $TM2::log->level($warn ? $DEBUG : $ERROR); # one of DEBUG, INFO, WARN, ERROR, FATAL
 
-use lib '../tm2_dbi/lib';
+use lib '../tm2-dbi/lib';
+use lib '../tm2-base/lib';
 use lib '../templescript/lib';
 
 #== TESTS ========================================================================
+
+require_ok( 'TM2::TS::Stream::ssh_s' );
+
+if (DONE) {
+    my $AGENDA = q{stream factory (multiple): };
+
+    use IO::Async::Loop;
+    my $loop = IO::Async::Loop->new;
+    use TM2::TS::Stream::ssh_s;
+
+    if (1) {
+	my $cc = TM2::TS::Stream::ssh_s::factory->new (loop => $loop, addresses => []);
+	isa_ok( $cc->loop, 'IO::Async::Loop');
+	is_deeply( $cc->addresses, [], $AGENDA.'no addresses' );
+
+	$cc = TM2::TS::Stream::ssh_s::factory->new (loop => $loop, addresses => [ [ TM2::Literal->new( 'localhost' ) ] ]);
+	isa_ok( $cc->loop, 'IO::Async::Loop');
+	is_deeply( $cc->addresses, [ [ TM2::Literal->new( 'localhost' ) ] ], $AGENDA.'addresses' );
+#--
+	$cc = TM2::TS::Stream::ssh_s::factory->new (TM2::Literal->new( 'localhost' ), loop => $loop);
+	isa_ok( $cc->loop, 'IO::Async::Loop');
+	is_deeply( $cc->addresses, [ [ TM2::Literal->new( 'localhost' ) ] ], $AGENDA.'addresses' );
+#--
+	$cc = TM2::TS::Stream::ssh_s::factory->new (TM2::Literal->new( 'localhost1' ), TM2::Literal->new( 'localhost2' ), loop => $loop);
+	isa_ok( $cc->loop, 'IO::Async::Loop');
+	is_deeply( $cc->addresses, [ [ TM2::Literal->new( 'localhost1' ), TM2::Literal->new( 'localhost2' ) ] ], $AGENDA.'addresses' );
+#--
+	$cc = TM2::TS::Stream::ssh_s::factory->new ([ TM2::Literal->new( 'localhost1' ) ], [ TM2::Literal->new( 'localhost2' ) ], loop => $loop);
+	isa_ok( $cc->loop, 'IO::Async::Loop');
+	is_deeply( $cc->addresses, [ [ TM2::Literal->new( 'localhost1' ) ], [ TM2::Literal->new( 'localhost2' ) ] ], $AGENDA.'addresses' );
+    }
+    if (1) { # single connection
+	my $cc = TM2::TS::Stream::ssh_s::factory->new (TM2::Literal->new( 'localhost' ), loop => $loop);
+        my $t = [];
+        my $c = $cc->prime ($t);
+	isa_ok( tied @$c, 'TM2::TS::Stream::ssh_s', $AGENDA.'stream type');
+
+	push @$c, [ TM2::Literal->new( '"XXX";' ) ];
+
+	$loop->watch_time( after => 4, code => sub {
+	    push @$c, bless [], 'ts:collapse';
+	    $loop->stop; } ); diag ("collapsing in 4 secs") if $warn;
+	$loop->run;
+#warn "final".Dumper $t;
+	is_singleton ($t, TM2::Literal->new( "XXX" ), $AGENDA.'result with single tuple, no params');
+
+    }
+    if (1) { # two hosts, two tuples
+	my $cc = TM2::TS::Stream::ssh_s::factory->new (loop => $loop, addresses => [ [ TM2::Literal->new( 'localhost'    ) ],
+										     [ TM2::Literal->new( 'localhost:22' ) ] ]);
+        my $t = [];
+        my $c = $cc->prime ($t);
+	isa_ok( tied @$c, 'TM2::TS::Stream::ssh_s', $AGENDA.'stream type');
+
+	push @$c, [ TM2::Literal->new( '"XXX";' ) ], [ TM2::Literal->new( '"YYY";' ) ];
+
+	$loop->watch_time( after => 4, code => sub {
+	    push @$c, bless [], 'ts:collapse';
+	    $loop->stop; } ); diag ("collapsing in 4 secs") if $warn;
+	$loop->run;
+#warn "final".Dumper $t;
+	is ((scalar @$t), 4, $AGENDA.'2 batches of 2');
+	ok( eq_set([ map { $_->[0]->[0] } @$t],
+		   [ "XXX", "YYY", "XXX", "YYY" ]), $AGENDA.'two hosts, two tuples, contents');
+    }
+    if (1) { # one host x2, two tuples
+	my $cc = TM2::TS::Stream::ssh_s::factory->new (loop => $loop, addresses => [ [ TM2::Literal->new( 'ssh://;multiplicity=2@localhost' ) ] ]);
+        my $t = [];
+        my $c = $cc->prime ($t);
+	isa_ok( tied @$c, 'TM2::TS::Stream::ssh_s', $AGENDA.'stream type');
+
+	push @$c, [ TM2::Literal->new( '"XXX";' ) ], [ TM2::Literal->new( '"YYY";' ) ];
+
+	$loop->watch_time( after => 4, code => sub {
+	    push @$c, bless [], 'ts:collapse';
+	    $loop->stop; } ); diag ("collapsing in 4 secs") if $warn;
+	$loop->run;
+#warn "final".Dumper $t;
+	is ((scalar @$t), 2, $AGENDA.'1 batch of 2');
+	ok( eq_set([ map { $_->[0]->[0] } @$t],
+		   [ "XXX", "YYY" ]), $AGENDA.'one hostx2, two tuples, contents');
+    }
+    if (1) { # one host x2, two tuples, blocking
+	my $cc = TM2::TS::Stream::ssh_s::factory->new (loop => $loop, addresses => [ [ TM2::Literal->new( 'ssh://;multiplicity=2@localhost' ) ] ]);
+        my $t = [];
+        my $this = [];
+	use TM2::TS::Stream::demote;
+        tie @$this, 'TM2::TS::Stream::demote', $t;
+        my $c = $cc->prime ($this);
+	isa_ok( tied @$c, 'TM2::TS::Stream::ssh_s', $AGENDA.'stream type');
+
+	push @$c, [ TM2::Literal->new( '"XXX";' ) ], [ TM2::Literal->new( '"YYY";' ) ];
+
+	$loop->watch_time( after => 4, code => sub {
+	    push @$c, bless [], 'ts:collapse';
+	    $loop->stop; } ); diag ("collapsing in 4 secs") if $warn;
+	$loop->run;
+#warn "final".Dumper $t;
+	$t = $t->[0]->[0]; # undo demote
+	is ((scalar @$t), 2, $AGENDA.'1 batch of 2');
+	ok( eq_set([ map { $_->[0]->[0] } @$t],
+		   [ "XXX", "YYY" ]), $AGENDA.'one hostx2, two tuples, contents');
+    }
+    if (1) { # two hosts, one invalid, not optional
+	my $cc = TM2::TS::Stream::ssh_s::factory->new (loop => $loop, addresses => [ [ TM2::Literal->new( 'localhost'    ) ],
+										     [ TM2::Literal->new( 'xxxlocalhost' ) ] ]);
+        my $t = [];
+        my $c = $cc->prime ($t);
+	isa_ok( tied @$c, 'TM2::TS::Stream::ssh_s', $AGENDA.'stream type');
+
+	push @$c, [ TM2::Literal->new( '"XXX";' ) ], [ TM2::Literal->new( '"YYY";' ) ];
+
+	$loop->watch_time( after => 4, code => sub {
+	    push @$c, bless [], 'ts:collapse';
+	    $loop->stop; } ); diag ("collapsing in 4 secs") if $warn;
+
+	throws_ok {
+	    $loop->run;
+	} qr/ssh.+out/, $AGENDA.'unreachable host';
+
+	$loop->run;
+	diag "not interested in result";
+    }
+    if (1) { # two hosts, one invalid, but optional
+	my $cc = TM2::TS::Stream::ssh_s::factory->new (loop => $loop, addresses => [ [ TM2::Literal->new( 'localhost'    ) ],
+										     [ TM2::Literal->new( 'ssh://;optional=1@xxxlocalhost' ) ] ]);
+        my $t = [];
+        my $c = $cc->prime ($t);
+	isa_ok( tied @$c, 'TM2::TS::Stream::ssh_s', $AGENDA.'stream type');
+
+	push @$c, [ TM2::Literal->new( '"XXX";' ) ], [ TM2::Literal->new( '"YYY";' ) ];
+
+	$loop->watch_time( after => 4, code => sub {
+	    push @$c, bless [], 'ts:collapse';
+	    $loop->stop; } ); diag ("collapsing in 4 secs") if $warn;
+
+	$loop->run;
+#warn "final".Dumper $t;
+	is ((scalar @$t), 2, $AGENDA.'1 batch of 2');
+	ok( eq_set([ map { $_->[0]->[0] } @$t],
+		   [ "XXX", "YYY" ]), $AGENDA.'one hostx2, two tuples, contents');
+    }
+}
+
+done_testing;
+
+__END__
 
 require_ok( 'TM2::TS::Stream::ssh' );
 

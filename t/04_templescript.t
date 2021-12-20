@@ -79,7 +79,7 @@ my $env = TM2::Materialized::TempleScript->new (
 my $sco = TM2::TempleScript::Stacked->new (orig => $core, id => 'ts:core');
 my $sen = TM2::TempleScript::Stacked->new (orig => $env,  id => 'ts:environment', upstream => $sco);
 
-require_ok( 'TM2::TS::Stream::ssh' );
+require_ok( 'TM2::TS::Stream::ssh_s' );
 
 if (DONE) {
     my $AGENDA = q{factory, structural: };
@@ -101,12 +101,12 @@ if (DONE) {
 
     if (1) {
 	$tss = TM2::TempleScript::return ($ctx, q{
-( "localhost" ) |->> ts:fusion( ssh:connection )
+( "localhost" ) |->> ts:fusion( ssh:pool )
                });
 	is_singleton( $tss, undef, $AGENDA.'single factory');
 	my $cc = $tss->[0]->[0];
-	isa_ok( $cc, 'TM2::TS::Stream::ssh::factory');
-	is( $cc->address->[0], 'localhost', $AGENDA.'target address');
+	isa_ok( $cc, 'TM2::TS::Stream::ssh_s::factory');
+	is_deeply( $cc->addresses, [ [ TM2::Literal->new( 'localhost' ) ] ], $AGENDA.'target addresses');
 	isa_ok( $cc->loop, 'IO::Async::Loop');
 #warn Dumper $tss; exit;
     }
@@ -129,7 +129,7 @@ return
 
 });
 
-    my $cc = TM2::TS::Stream::ssh::factory->new (loop => $loop, address => TM2::Literal->new( 'localhost' ));
+    my $cc = TM2::TS::Stream::ssh_s::factory->new (TM2::Literal->new( 'localhost' ), loop => $loop);
     my $ts = [];
 
     my $ctx = _mk_ctx ($stm);
@@ -175,15 +175,15 @@ if (DONE) {
 	    my $cpr = $ap->parse_query (q{ 
    ( "'XXX';", "'YYY';" ) | zigzag
  |-{
-     count | ( "localhost" ) |->> ts:fusion( ssh:connection ) => $ssh
+     count | ( "localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
  ||><||
-     <<- now | @ $ssh |->> io:write2log
+     <<- 2 sec | @ $ssh |->> io:write2log
  }-| demote |->> ts:tap( $tss )
 
  }, $tm->stack);
 	    (my $ss, undef) = TM2::TempleScript::PE::pe2pipe ($ctx, $cpr);
-	    $loop->watch_time( after => 3, code => sub { diag "stopping stream " if $warn; push @$ss, bless [], 'ts:collapse'; } );
-	    $loop->watch_time( after => 4, code => sub { diag "stopping loop "   if $warn; $loop->stop; } );
+	    $loop->watch_time( after => 4, code => sub { diag "stopping stream " if $warn; push @$ss, bless [], 'ts:collapse'; } );
+	    $loop->watch_time( after => 5, code => sub { diag "stopping loop "   if $warn; $loop->stop; } );
 	    push @$ss, bless [], 'ts:kickoff';
 	}
 	$loop->run;
@@ -201,15 +201,15 @@ if (DONE) {
 	    my $cpr = $ap->parse_query (q{ 
    ( "'XXX';", "'YYY';" ) | zigzag
  |-{
-     count | ( "localhost" ) |->> ts:fusion( ssh:connection ) => $ssh
+     count | ( "localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
  ||><||
-     <- now |_1_| @ $ssh |->> io:write2log
+     <- 2 sec |_1_| @ $ssh |->> io:write2log
  }-| demote |->> ts:tap( $tss )
 
  }, $tm->stack);
 	    (my $ss, undef) = TM2::TempleScript::PE::pe2pipe ($ctx, $cpr);
-	    $loop->watch_time( after => 3, code => sub { diag "stopping stream " if $warn; push @$ss, bless [], 'ts:collapse'; } );
-	    $loop->watch_time( after => 4, code => sub { diag "stopping loop "   if $warn; $loop->stop; } );
+	    $loop->watch_time( after => 4, code => sub { diag "stopping stream " if $warn; push @$ss, bless [], 'ts:collapse'; } );
+	    $loop->watch_time( after => 5, code => sub { diag "stopping loop "   if $warn; $loop->stop; } );
 	    push @$ss, bless [], 'ts:kickoff';
 	}
 	$loop->run;
@@ -225,15 +225,15 @@ if (DONE) {
 	    my $cpr = $ap->parse_query (q{ 
    ( "qx[ls]" )
  |-{
-     count | ( "localhost" ) |->> ts:fusion( ssh:connection ) => $ssh
+     count | ( "localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
  ||><||
-     <<- now | @ $ssh
+     <<- 2 sec | @ $ssh
  }-|->> ts:tap( $tss )
 
  }, $tm->stack);
 	    (my $ss, undef) = TM2::TempleScript::PE::pe2pipe ($ctx, $cpr);
-	    $loop->watch_time( after => 3, code => sub { diag "stopping stream " if $warn; push @$ss, bless [], 'ts:collapse'; } );
-	    $loop->watch_time( after => 4, code => sub { diag "stopping loop "   if $warn; $loop->stop; } );
+	    $loop->watch_time( after => 4, code => sub { diag "stopping stream " if $warn; push @$ss, bless [], 'ts:collapse'; } );
+	    $loop->watch_time( after => 5, code => sub { diag "stopping loop "   if $warn; $loop->stop; } );
 	    push @$ss, bless [], 'ts:kickoff';
 	}
 	$loop->run;
