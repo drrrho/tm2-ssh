@@ -64,6 +64,93 @@ use TM2::TS::Shard;
 @ISA = ('TM2::TS::Shard');
 
 
+my @SSH_keywords = qw(
+    AddKeysToAgent
+    AddressFamily
+    BatchMode 
+    BindAddress 
+    CanonicalDomains 
+    CanonicalizeFallbackLocal
+    CanonicalizeHostname
+    CanonicalizeMaxDots
+    CanonicalizePermittedCNAMEs
+    CASignatureAlgorithms
+    CertificateFile
+    ChallengeResponseAuthentication
+    CheckHostIP
+    Ciphers
+    ClearAllForwardings
+    Compression
+    ConnectionAttempts
+    ConnectTimeout
+    ControlMaster
+    ControlPath
+    ControlPersist
+    DynamicForward
+    EscapeChar
+    ExitOnForwardFailure
+    FingerprintHash
+    ForwardAgent
+    ForwardX11
+    ForwardX11Timeout
+    ForwardX11Trusted
+    GatewayPorts
+    GlobalKnownHostsFile
+    GSSAPIAuthentication
+    GSSAPIDelegateCredentials
+    HashKnownHosts
+    Host
+    HostbasedAuthentication
+    HostbasedKeyTypes
+    HostKeyAlgorithms
+    HostKeyAlias
+    HostName
+    IdentitiesOnly
+    IdentityAgent
+    IdentityFile
+    IPQoS
+    KbdInteractiveAuthentication
+    KbdInteractiveDevices
+    KexAlgorithms
+    LocalCommand
+    LocalForward
+    LogLevel
+    MACs
+    Match
+    NoHostAuthenticationForLocalhost
+    NumberOfPasswordPrompts
+    PasswordAuthentication
+    PermitLocalCommand
+    PKCS11Provider
+    Port
+    PreferredAuthentications
+    ProxyCommand
+    ProxyJump
+    ProxyUseFdpass
+    PubkeyAcceptedKeyTypes
+    PubkeyAuthentication
+    RekeyLimit
+    RemoteCommand
+    RemoteForward
+    RequestTTY
+    SendEnv
+    ServerAliveInterval
+    ServerAliveCountMax
+    SetEnv
+    StreamLocalBindMask
+    StreamLocalBindUnlink
+    StrictHostKeyChecking
+    TCPKeepAlive
+    Tunnel
+    TunnelDevice
+    UpdateHostKeys
+    User
+    UserKnownHostsFile
+    VerifyHostKeyDNS
+    VisualHostKey
+    XAuthLocation
+);
+
 #== ARRAY interface ==========================================================
 
 sub new_ssh {
@@ -72,14 +159,22 @@ sub new_ssh {
 
     my $mult     = 1; # default
     my $optional = 0; # default;
-    if ($addr =~ s{ssh://}{}) {
-	$mult     = $1 if $addr =~ s/;multiplicity=(\d+)//;
-	$optional = $1 if $addr =~ s/;optional=(\d+)//;
+    my @options;
+    if ($addr =~ s{ssh://}{}) { # inspired by https://tools.ietf.org/id/draft-salowey-secsh-uri-00.html
+	$mult     = $1        if $addr =~ s/;multiplicity=(\d+)//;
+	$TM2::log->warn( "multiplicity 0 implies that NO ssh session will be created" ) unless $mult > 0;
+	$optional = $1        if $addr =~ s/;optional=(\d+)//;
+
+	foreach my $kw (@SSH_keywords) {
+	    push @options, "-o $kw=$1" if $addr =~ s/;$kw=([^@;]+)//;
+	}
+#warn Dumper \@options;
     }
-    $addr =~ /(\w*?)(@)?(\w+)(:(\d+))?/
+#warn "addr $addr";
+    $addr =~ /((\w+?)@)?(\w+)(:(\d+))?/
         // $TM2::log->logdie ("address should be of the form (user@)?hostname(:port)? '$addr'");
-    my ($user, $host, $port) = ($1, $3, $5);
-#warn ">>$user<< >>$host<< >>$port<< >>$mult<<";
+    my ($user, $host, $port) = ($2, $3, $5);
+#warn "user >>$user<< host >>$host<< port >>$port<< mult >>$mult<<";
 
     my @sshs;
     foreach my $instance (1..$mult) {
@@ -88,16 +183,11 @@ sub new_ssh {
 	$ssh = IPC::PerlSSH::Async->new(
 	    on_exception => sub {
 		$TM2::log->debug( "IPC::PerlSSH::Async build exception '$_[0]' ignored for the moment..." );
-#		$ssh->{process}->kill( 9 );
-#		$loop->remove( $ssh );
-#warn Dumper $ssh;
-#		$optional
-#		    ? $TM2::log->warn( "ssh exception '$_[0]'" )
-#		    : $TM2::log->logdie( "ssh exception '$_[0]'" );
 	    },
 	    Host         => $host,
   ($user ? (User         => $user) : ()),
   ($port ? (Port         => $port) : ()),
+	    SshOptions   => \@options,
 	    );
 #warn "generated $ssh";
 	$loop->add( $ssh );
@@ -106,7 +196,10 @@ sub new_ssh {
 	$url .= "ssh://".($user ? $user : '')."\@$host";
 	$url .= ":$port" if defined $port;
 	$url =~ s{@}{;instance=$instance/$mult@} if $mult > 1;
-	push @sshs, { url => $url, connection => $ssh, optional => $optional };
+	push @sshs, { url        => $url,
+		      connection => $ssh,
+		      optional   => $optional,
+		      options    => \@options };
     }
 #warn "return ".scalar @sshs;
     return @sshs;
