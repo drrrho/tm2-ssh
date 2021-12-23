@@ -65,14 +65,15 @@ my $builder = $debian->new(
     dist_version_from   => 'lib/TM2/SSH.pm',
     release_status      => 'stable',
     configure_requires => {
-             'Module::Build' => '0',
+	'Module::Build' => '0',
     },
     build_requires => {
- 	    'Test::More' => 0,
+	'Test::More' => 0,
 	    'Pod::Readme' => 0,
+	    'List::Util' => 0,
     },
     requires => {
-	    'TM2::TempleScript' => 0,
+	'TM2::TempleScript' => 0,
 	    'IPC::PerlSSH::Async' => 0,
     },
     add_to_cleanup     => [ 'TM2-SSH-*' ],
