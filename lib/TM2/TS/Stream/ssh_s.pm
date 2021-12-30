@@ -171,7 +171,7 @@ sub new_ssh {
 #warn Dumper \@options;
     }
 #warn "addr $addr";
-    $addr =~ /((\w+?)@)?(\w+)(:(\d+))?/
+    $addr =~ /((\w+?)@)?([\w\.]+)(:(\d+))?/
         // $TM2::log->logdie ("address should be of the form (user@)?hostname(:port)? '$addr'");
     my ($user, $host, $port) = ($2, $3, $5);
 #warn "user >>$user<< host >>$host<< port >>$port<< mult >>$mult<<";
