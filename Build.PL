@@ -58,6 +58,19 @@ sub ACTION_inject {
 }
 SUBCLASS
 
+unless (defined getpwnam('poo') ) {
+    warn "for testing we need a user 'po'";
+    print "
+    \$ sudo adduser po
+    \$ sudo mkdir ~po/.ssh/
+    \$ sudo cp t/po_rsa.pub ~po/.ssh/authorized_keys
+    \$ sudo chown po:po ~po/.ssh/authorized_keys
+    \$ sudo chmod 600   ~po/.ssh/authorized_keys
+    \$ sudo cp t/po.sudo   /etc/sudoers.d/tm2-ssh-test-user
+
+";
+}
+
 my $builder = $debian->new(
     module_name         => 'TM2::SSH',
     license             => 'artistic_2',
