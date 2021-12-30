@@ -10,7 +10,7 @@ use TM2::TempleScript::Test;
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
-use constant DONE => 0;
+use constant DONE => 1;
 
 sub _chomp {
     my $s = shift;
@@ -111,7 +111,7 @@ if (DONE) {
  |-{
      count | ( "ssh://po;IdentityFile=t/po_rsa@localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
  ||><||
-     <<- 6 sec | @ $ssh |->> io:write2log
+     <<- 6 sec | @ $ssh # |->> io:write2log
  }-| demote |->> ts:tap( $tss )
 
  }, $tm->stack);
@@ -136,7 +136,7 @@ if (DONE) {
  |-{
      count | ( "ssh://po;IdentityFile=t/po_rsa@localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
  ||><||
-     <<- 6 sec | @ $ssh |->> io:write2log
+     <<- 6 sec | @ $ssh # |->> io:write2log
  }-| demote |->> ts:tap( $tss )
 
  }, $tm->stack);
@@ -164,7 +164,7 @@ if (DONE) {
  |-{
      count | ( "ssh://po;IdentityFile=t/po_rsa@localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
  ||><||
-     <<- 6 sec | @ $ssh |->> io:write2log
+     <<- 6 sec | @ $ssh # |->> io:write2log
  }-| demote |->> ts:tap( $tss )
 
  }, $tm->stack);
@@ -184,7 +184,7 @@ if (DONE) {
     }
 }
 
-if (1||DONE) {
+if (DONE) {
     my $AGENDA = q{multiple connections: };
 
     use IO::Async::Loop;
@@ -203,15 +203,15 @@ if (1||DONE) {
 
     my $ctx = _mk_ctx ($stm);
     $ctx = [ @$ctx, { '$loop' => $loop, '$tss' => $ts } ];
-#--
+#-- parallel via multiplicity
     @$ts = ();
-    if (0) {
+    if (1) {
 	{
 	    my $cpr = $ap->parse_query (q{ 
   -{
      count | ( "ssh://po;IdentityFile=t/po_rsa;multiplicity=3@localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
  ||><||
-     <<- 6 sec | @ $ssh |->> io:write2log
+     <<- 6 sec | @ $ssh # |->> io:write2log
  }-|->> ts:tap( $tss )
 
  }, $tm->stack);
@@ -227,10 +227,34 @@ if (1||DONE) {
 	is( (scalar keys %pids), 3, $AGENDA.'worked N processes');
 	use List::Util qw(sum);
 	is( (sum values %pids), 10, $AGENDA.'load distributed');
-
-#	ok(eq_set ([ map { $_->[0]->[0] } @$ts ], [ map { $_ + 0.5 } 0..9 ]), $AGENDA.'content');
     }
-#--
+#-- parallel via multiple hosts
+    @$ts = ();
+    if (1) {
+	{
+	    my $cpr = $ap->parse_query (q{ 
+  -{
+     count | ( "ssh://po;IdentityFile=t/po_rsa@localhost",
+	       "ssh://po;IdentityFile=t/po_rsa@localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
+ ||><||
+     <<- 6 sec | @ $ssh # |->> io:write2log
+ }-|->> ts:tap( $tss )
+
+ }, $tm->stack);
+	    (my $ss, undef) = TM2::TempleScript::PE::pe2pipe ($ctx, $cpr);
+	    $loop->watch_time( after => 7, code => sub { diag "stopping stream " if $warn; push @$ss, bless [], 'ts:collapse'; } );
+	    $loop->watch_time( after => 8, code => sub { diag "stopping loop "   if $warn; $loop->stop; } );
+	    push @$ss, map { [ TM2::Literal->new("\$\$") ] } 0..9;
+	}
+	$loop->run;
+#warn Dumper $ts; exit;
+	my %pids;
+	map { $pids{$_}++ } map { $_->[0]->[0] } @$ts;
+	is( (scalar keys %pids), 2, $AGENDA.'worked N processes');
+	use List::Util qw(sum);
+	is( (sum values %pids), 10, $AGENDA.'load distributed');
+    }
+#-- serial
     @$ts = ();
     if (1) {
 	{
@@ -238,7 +262,7 @@ if (1||DONE) {
 _1_|-{
        ( "ssh://po;IdentityFile=t/po_rsa@localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
      |><|
-       <<- 2 sec | @ $ssh |->> io:write2log
+       <<- 2 sec | @ $ssh # |->> io:write2log
      }-|->> ts:tap( $tss )
 
  }, $tm->stack);

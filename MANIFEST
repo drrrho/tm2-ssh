@@ -6,6 +6,7 @@ lib/TM2/SSH.pm
 lib/TM2/TS/Stream/ssh_s.pm
 t/02_stream.t
 t/04_templescript.t
+t/07_use_cases.t
 t/po.sudo
 t/po_rsa
 t/po_rsa.pub
