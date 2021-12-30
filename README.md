@@ -8,16 +8,17 @@ TM2::SSH - TempleScript extension for SSH
 
 # DESCRIPTION
 
-This TempleScript extension provides a vehicle to execute Perl code on a remote machine. When I write "Perl code" here, then
-this also implies "shell code", as it is easy to invoke a shell capture from Perl:
+This TempleScript extension provides a vehicle to execute Perl code on a remote machine. When I
+write "Perl code" here, then this also implies "shell code", as it is easy to invoke a shell capture
+from Perl:
 
     qx[ls -al]      # also known as "backtick"
 
 Obviously, there are three phases: First open the SSH connection to the remote machine, then execute
 one or more Perl code fragments (the results will be delivered back), then let the SSH connection go
-away. This is easily achieved with a _junction_:
+away. This is easily achieved with a \_junction\_:
 
-       ( "qx[ls]" )           # the shell command to be execute
+       ( "qx[ls]" )           # the shell command to be executed
      |-{
          ( "localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
      ||><||                   # signals to TS that the following is not automatically collapsing
@@ -25,30 +26,95 @@ away. This is easily achieved with a _junction_:
      }-|->> io:write2log
 
 In the above case we use a single string as incoming block. For this block first the SSH connection
-will be erected using the `ts:fusion` function. Once that is established that small block is also
-pushed into second stage. It will pass unharmed the `2 seconds` disabler and will move into the `$ssh`
-stream handler.
+will be erected using the \`ts:fusion\` function. Once that is established that small block is also
+pushed into second stage of the junction. It will pass unharmed the \`2 seconds\` disabler (while
+starting it) and will move into the \`$ssh\` stream handler.
 
-Hereby a single tuple will be interpreted as such, that the first value is used as Perl code, the
-other values of the tuples as optional arguments:
+Hereby a single tuple will be interpreted as such, that the first value in the tuple is used as Perl
+code, the other values in the tuple as optional arguments. For example,
 
      ( "open FILE, '>', $_[0]; print FILE $_[1]; close FILE;",
        "foo.txt",
        "Hello, world!" )
 
+or
+
      ( "unlink", "foo.txt" )
 
-Any result of a single Perl code will be returned as ONE string, even if there are several lines.
+Any result of a single execution will be returned as ONE string, even if it consists of several lines.
 
-The `2 seconds` disabler takes care that the SSH connection is only used for incoming blocks within
-these 2 seconds. Any later blocks would open a new connection. One can use TempleScript's mechanism
-to maintain long-living SSH connections, either by increasing the scope of the variable `$ssh`; or
-by not disabling the $ssh stream.
+The \`2 seconds\` disabler takes care that the SSH connection is only used for incoming blocks within
+these 2 seconds. After this the connection will be shut down, unless another block arrived within
+these 2 secs. Any later blocks would open a new connection.
 
-If you pass in a block of several tuples into `$ssh`, then the individual tuples will be executed
+Beware of the default \*connection timeout\* the binary \`ssh\` has, as that can be pretty long. If you
+ask to connect to a slow machine (or your DNS is slow), then the disabler might kick in earlier,
+leading to quite erratic and confusing behaviour. You might want to throw in an SSH option (see
+below), such as \`ConnectionTimeout=1\`.
+
+One can also use TempleScript's mechanism to maintain long-living SSH connections, either by
+increasing the scope of the variable \`$ssh\`; or by not disabling the $ssh stream at all.
+
+If you pass in a block of several tuples into \`$ssh\`, then the individual tuples will be executed
 separately; but the coherence of the block on the outgoing side will be maintained.
 
+\## URI Addressing
+
+Naming the target host by itself is a convenient and fast-and-loose way, but occasionally you need
+to be more specific about the modalities of the SSH connection to be built. For this reason, we
+adopt partially the URI format proposed in \[SSH URI draft\](https://tools.ietf.org/id/draft-salowey-secsh-uri-00.html\]):
+
+    ssh://somehost.org
+    ssh://somehost.org:1234
+    ssh://someuser@somehost.org
+
+\### SSH Options
+
+This also includes all options mentioned in the \[SSH man page\](https://man.openbsd.org/ssh#o), e.g.
+
+    ssh://someuser;IdentityFile=/home/someuser/.ssh/id.rsa@somehost.org
+
+or even with making explicit the SSH fingerprint to be acceptable:
+
+    ssh://someuser;IdentityFile=/home/someuser/.ssh/id.rsa;FingerprintHash=12:....:34@somehost.org
+
+\### Additional Options
+
+\* "optional":
+
+    If you throw in "optional=yes" into the list of options, then a failed connection with that
+    particular host will *not* result in an exception; TS will just report a line in the log and move
+    on.
+
+\* "multiplicity":
+
+    If you throw in "multiplicity=3", then 3 separate SSH connections will be created to that
+    particular host. Setting this number to "0" is ok per-se, but that will not create any connection,
+    unsurprisingly.
+
+    Not that every connection is maintained via a single fork()ed process.
+
+block behaviour
+
 @@@ what happens with errors
+
+ConnectTimeout
+
+Advice: 
+
+(a) either provide password manually
+(b) other have .pub and then
+
+ssh://po;IdentityFile=t/po\_rsa@localhost
+
+restrict user on target host
+
+po      ALL=(ALL) !ALL
+po      ALL=(root) NOPASSWD: /usr/bin/whoami
+
+SSH fingerprinting, add in DNS
+
+option ????
 
 # AUTHOR
 
