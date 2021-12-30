@@ -25,6 +25,7 @@ unless ($warn) {
     select (STDERR); $| = 1;
 }
 
+
 use lib '../tm2_dbi/lib';
 use lib '../tm2-base/lib';
 use lib '../templescript/lib';
@@ -263,7 +264,7 @@ if (DONE) {
     my $ts = [];
 
     my $ctx = _mk_ctx ($stm);
-    $ctx = [ @$ctx, { '$loop' => $loop, '$tss' => $ts } ];
+    $ctx = [ @$ctx, { '$loop' => $loop, '$ts' => $ts } ];
 #--
     @$ts = ();
     if (1) {
@@ -271,12 +272,12 @@ if (DONE) {
 	    my $cpr = $ap->parse_query (q{ 
    ( "'XXX';", "'YYY';" ) | zigzag
  |-{
-     count | ( "ssh://;optional=1@xxxlocalhost",
+     count | ( "ssh://;ConnectTimeout=1;optional=1@192.168.255.255",
                "localhost" )
            |->> ts:fusion( ssh:pool ) => $ssh
  ||><||
-     <<- 2 sec | @ $ssh |->> io:write2log
- }-| demote |->> ts:tap( $tss )
+     <<- 4 sec | @ $ssh |->> io:write2log
+ }-| demote |->> ts:tap( $ts )
 
  }, $tm->stack);
 	    (my $ss, undef) = TM2::TempleScript::PE::pe2pipe ($ctx, $cpr);
@@ -289,7 +290,7 @@ if (DONE) {
 	is_singleton( $ts, undef, $AGENDA.'ssh single, optional');
 	my $ts2 = $ts->[0]->[0];
 	ok( scalar @$ts2 == 2, $AGENDA.'both went through, optional');
-	ok(eq_array ([ map { $_->[0]->[0] } @$ts2 ], [ qw(XXX YYY) ]), $AGENDA.'content, optional');
+	ok(eq_set ([ map { $_->[0]->[0] } @$ts2 ], [ qw(XXX YYY) ]), $AGENDA.'content, optional');
     }
 #--
     @$ts = ();
@@ -298,12 +299,12 @@ if (DONE) {
 	    my $cpr = $ap->parse_query (q{ 
    ( "'XXX';", "'YYY';" ) | zigzag
  |-{
-     count | ( "ssh://;optional=0@xxxlocalhost",
+     count | ( "ssh://;ConnectTimeout=1;optional=0@192.168.255.255",
                "localhost" )
            |->> ts:fusion( ssh:pool ) => $ssh
  ||><||
      <<- 2 sec | @ $ssh |->> io:write2log
- }-| demote |->> ts:tap( $tss )
+ }-| demote |->> ts:tap( $ts )
 
  }, $tm->stack);
 	    (my $ss, undef) = TM2::TempleScript::PE::pe2pipe ($ctx, $cpr);
@@ -311,10 +312,41 @@ if (DONE) {
 	    $loop->watch_time( after => 5, code => sub { diag "stopping loop "   if $warn; $loop->stop; } );
 	    push @$ss, bless [], 'ts:kickoff';
 	}
+
 	throws_ok {
 	    $loop->run;
 	} qr/escalat/, $AGENDA.'detected connection problem';
 	$loop->run;
+	diag "not interested in result";
+    }
+#--
+    @$ts = ();
+    if (1) {
+	{
+	    my $cpr = $ap->parse_query (q{ 
+   ( "'XXX';", "'YYY';" ) | zigzag
+ |-{
+     count | ( "ssh://;ConnectTimeout=1;optional=1@192.168.255.255",
+               "ssh://;ConnectTimeout=1;optional=1@192.168.255.255",
+               "localhost" )
+           |->> ts:fusion( ssh:pool ) => $ssh
+ ||><||
+     <<- 4 sec | @ $ssh |->> io:write2log
+ }-| demote |->> ts:tap( $ts )
+
+ }, $tm->stack);
+	    (my $ss, undef) = TM2::TempleScript::PE::pe2pipe ($ctx, $cpr);
+	    $loop->watch_time( after => 5, code => sub { diag "stopping stream " if $warn; push @$ss, bless [], 'ts:collapse'; } );
+	    $loop->watch_time( after => 6, code => sub { diag "stopping loop "   if $warn; $loop->stop; } );
+	    push @$ss, bless [], 'ts:kickoff';
+	}
+	$loop->run;
+#warn Dumper $ts; exit;
+	is_singleton( $ts, undef, $AGENDA.'ssh single, optionals + one functional');
+	my $ts2 = $ts->[0]->[0];
+	ok( scalar @$ts2 == 2, $AGENDA.'both went through, optional');
+	ok(eq_set ([ map { $_->[0]->[0] } @$ts2 ], [ qw(XXX YYY) ]), $AGENDA.'content, optional');
+
     }
 }
 
@@ -322,3 +354,7 @@ done_testing;
 
 __END__
 
+	throws_ok {
+	    $loop->run;
+	} qr/all.+gone/, $AGENDA.'detected connection problem';
+	$loop->run;

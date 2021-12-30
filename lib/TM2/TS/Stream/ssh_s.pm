@@ -215,7 +215,8 @@ sub TIEARRAY {
         creator   => $$,    # we can only be killed by our creator (not some fork()ed process)
         stopper   => undef,
 	addrs     => $addrs,
-	pool      => undef, # array of arrays of connections (IPC::PerlSSH::Async)
+	pool      => undef, # array of connections (IPC::PerlSSH::Async)
+	pool_i    => 0, # RR index into the pool
         loop      => $loop,
         tail      => $tail,
     }, $class;
@@ -246,7 +247,6 @@ sub PUSH {
 	map { $elf->{loop}->remove( $_ ) }                                                     # remove all ssh connections from the $loop
 	   grep { defined }
 	   map { $_->{connection} }                                                            # could have become invalid at some earlier time
-	   map { @$_ }                                                                         # flatten list ref
 	      @{ $elf->{pool} };
 	$elf->{pool} = undef;                                                                  # trigger DESTROY
 	$elf->{stopper}->done unless ! $elf->{stopper} || $elf->{stopper}->is_done;
@@ -261,74 +261,84 @@ sub PUSH {
 	$elf->{stopper} //= $elf->{loop}->new_future;                                          # create death lock
 
 	$elf->{pool} //= [                                                                     # maybe we already have created the ssh connections before
-	    map { [ new_ssh( $_, $elf->{loop} ) ] }                                            # produces a LIST of HASHes 
-	    map { @$_ }                                                                        # flatten this sublist
-	       @{ $elf->{addrs} }                                                              # get each of the LISTs within the ARRAY
+            map {
+	          map { new_ssh( $_, $elf->{loop} ) } @$_                                        # produces a LIST of HASHes 
+            } @{ $elf->{addrs} }                                                               # get each of the LISTs within the ARRAY
 	    ];
 #warn "pool ".Dumper $elf->{pool};
 #warn "pool ".Dumper [
-#map { [ map { $_->{url} .' '.($_->{optional} ? 'optional' : 'mandatatory') } @$_ ] }
-#@{ $elf->{pool} }
+#      map { $_->{url} .' '.($_->{optional} ? 'optional' : 'mandatatory') }
+#      @{ $elf->{pool} }
 #];
 
-	my $partials = {};                                                                     # here we collect blocks on a per-subpool basis
-	my $idx_pool = { map { $_ => 0 } @{ $elf->{pool} } };                                  # reset all indices in the subpools
-
+	my @partials; # collect results temporarily, until we can flush them
 	foreach my $t (@block) {                                                               # walk over every incoming tuple
 #warn "working on ".Dumper $t;
 	    my ($code, @params) = map { $_->[0] } @$t;                                         # assume TM2::Literal (TODO: general stringify?)
-	    foreach my $p (@{ $elf->{pool} }) {                                                # the tuple must be handed down to ALL subpools
-		my $instance = _find_working_connection_within( $p, $idx_pool )
-		    or next;                                                                   # no valid connection in this pool, so we ignore this tuple here
-#warn "ssh with $code";
-		my $ssh = $instance->{connection};
-#warn "\\_ $ssh ";
-		$ssh->eval(
-		    code      => $code,
-		    args      => \@params,
-		    on_exception => sub {
-#warn "exception on eval $_[0]";
-#			$elf->{loop}->remove( $instance->{connection} );
-#			$instance->{connection} = undef;   # mark it as unusable
-			$instance->{optional}
-			    ? $TM2::log->warn( $instance->{url} . " went out of business, ignoring since it is marked optional")
-			    : $instance->{exception}++      # only raise exception once
-			    || $TM2::log->logdie( $instance->{url} . " went out of business, mandatory, so we are escalating ..." );
-		    },
-		    on_result => sub {
-#warn "result".Dumper \@_;
-			my $s = join "", @_;
-			push @{ $partials->{$p} }, [ TM2::Literal->new( $s ) ];                # collect the intermediate results in the block
-			if (scalar @block <= scalar @{ $partials->{$p} }) {                    # if we have as many responses as commands,
-#warn "tailing ".Dumper $partials->{$p};
-			    push @$tail, @{ $partials->{$p} };                                 # push the whole lot downstream
-			    $partials->{$p} = [];                                              # flush the buffer
-			}
-		    },
-		    );
-	    }
+#warn "\\ code $code";
+	    _find_working_connection_and_launch( $elf, $code, \@params, \@partials, (scalar @block), $tail );
 	}
-#warn "partials".Dumper $partials;
-# TODO: warn/react if partial result have not been tailed
-    }
+
+sub _find_working_connection_and_launch {
+    my $elf = shift;
+    my $code = shift;
+    my $params = shift;
+    my $partials = shift;
+    my $nr_tuples = shift;
+    my $tail = shift;
+
+    my $instance = _find_working_connection_within( $elf ) # side effect on elf pool index
+	or $TM2::log->logdie( "all connections in the pool are gone" );
+
+    my $ssh = $instance->{connection};
+#warn "\\_ $ssh detected as valid ";
+    $ssh->eval(
+	code      => $code,
+	args      => $params,
+	on_result => sub {
+#warn "result".Dumper \@_;
+	    my $s = join "", @_;
+	    push @$partials, [ TM2::Literal->new( $s ) ];                # collect the intermediate results in the block
+	    if ($nr_tuples <= scalar @$partials) {                    # if we have as many responses as commands,
+#warn "tailing ".Dumper \@$partials;
+		push @$tail, @$partials;                                 # push the whole lot downstream
+		@$partials = ();                                              # flush the buffer
+	    }
+	},
+	on_exception => sub {
+#warn "exception on eval $_[0]";
+	    $instance->{exception}++; # ignore it next time around
+	    if ($instance->{optional}) {
+		$TM2::log->warn( $instance->{url} . " went out of business, ignoring since it is marked optional");
+		_find_working_connection_and_launch( $elf, $code, $params, $partials, $nr_tuples, $tail );  # try re-launch
+	    } else {
+		$TM2::log->logdie( $instance->{url} . " went out of business, mandatory, so we are escalating ..." );
+	    }
+	},
+	);
 }
 
 sub _find_working_connection_within {
-    my $p = shift;
-    my $idx_pool = shift;
-    return undef unless grep { $_->{connection} }  @$p;                        # so there is at least one defined connection in this pool
+    my $elf = shift;
+    my $p = $elf->{pool};
+    return undef unless grep { ! $_->{exception} }
+                        grep {   $_->{connection} }  @$p;                        # so there is at least one defined connection in this pool
 #warn "there is one defined ssh in $p";
 
     my $instance; # agenda
-    my $i = $idx_pool->{$p};                                                   # find corresponding wrapper index
+    my $i = $elf->{pool_i};                                                   # find wrapper index
     do {
 #warn "ssh for $p -> $i";
 	$instance = $p->[$i];                                                  # select one connection within the subpool
 	$i = 0 if ++$i > $#$p;                                                 # increment and reset wrapper index, in case
-	$idx_pool->{$p} = $i;                                                  # track that for next time in this subpool
-    } until $instance->{connection};               # if not undef, we will work with it
-#warn "\\  for $p -> $i >>$ssh";
+	$elf->{pool_i} = $i;                                                  # track that for next time in this subpool
+    } until $instance->{connection} && ! $instance->{exception};               # if not undef, we will work with it
+#warn "\\  for $p -> $i >>$instance";
     return $instance;
+}
+
+
+    }
 }
 
 sub FETCHSIZE {
@@ -350,6 +360,17 @@ sub CLEAR {
 
 __END__
 
+#			$elf->{loop}->remove( $instance->{connection} );
+#			$instance->{connection} = undef;   # mark it as unusable
+
+
+	    foreach my $p (@{ $elf->{pool} }) {                                                # the tuple must be handed down to ALL subpools
+		    or next;                                                                   # no valid connection in this pool, so we ignore this tuple here
+warn "ssh with $code";
+	    }
+	}
+#warn "partials".Dumper $partials;
+# TODO: warn/react if partial result have not been tailed
 # sub new_sshs {
 #     my $addrs = shift;
 #     my $spool = shift;
