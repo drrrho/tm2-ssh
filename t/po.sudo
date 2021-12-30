@@ -1,0 +1,3 @@
+po	ALL=(ALL) !ALL
+po	ALL=(root) NOPASSWD: /usr/bin/whoami
+
