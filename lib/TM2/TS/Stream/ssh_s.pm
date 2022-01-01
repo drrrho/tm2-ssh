@@ -12,30 +12,39 @@ has 'loop' => (
 
 has 'addresses' => (
     is        => 'rw',
-    isa       => 'ArrayRef[ArrayRef]',
+    isa       => 'ArrayRef[Str]',
     );
 
 around 'BUILDARGS' => sub {
     my $orig = shift;
     my $class = shift;
 
-    if (ref($_[0]) eq 'TM2::Literal') {
-	my @addrs;
-	while (ref($_[0]) eq 'TM2::Literal') {
-	    push @addrs, shift;
-	}
-        return $class->$orig ({ addresses => [ [ @addrs ] ], @_ });
-
-    } elsif (ref($_[0]) eq 'ARRAY') {
-	my @addrs;
-	while (ref($_[0]) eq 'ARRAY') {
-	    push @addrs, shift;
-	}
-        return $class->$orig ({ addresses => [ @addrs ], @_ });
-
-    } else {
-        return $class->$orig (@_);
+#warn "inside BUILDARG ".Dumper \@_;
+    my @addrs;
+    while (ref($_[0]) eq 'TM2::Literal') {   # collect any addresses, if any
+	push @addrs, shift->[0];
     }
+
+    my %options = @_; # the rest MUST be kv-based
+    my @sshOptions  = map { [ $_->[0] =~ s/^ssh:// && $_->[0], $_->[1] ] }
+                      map { [ $_, delete $options{$_} ] }
+                      grep { /^ssh:/ }
+                      keys %options;
+    my @poolOptions = map { [ $_->[0] =~ s/^sshp:// && $_->[0], $_->[1] ] }
+                      map { [ $_, delete $options{$_} ] }
+                      grep { /^sshp:/ }
+                      keys %options;
+
+#warn Dumper \@sshOptions, \@poolOptions;
+
+    @addrs = @{ delete $options{addresses} } unless @addrs;
+    @addrs = map { $_ =~ m{^ssh://} ? $_ : "ssh://$_" } @addrs;  # canonicalize
+
+    if (my $options = join '', map { ';' . $_->[0] . '=' . $_->[1] } @sshOptions, @poolOptions) {
+	map { /\@/ ? s{\@}{$options\@} : s{ssh://}{ssh://$options\@} } @addrs;
+    }
+#warn "final addr ".Dumper \@addrs;
+    return $class->$orig ({ addresses => \@addrs, %options });
 };
 
 sub prime {
@@ -43,7 +52,7 @@ sub prime {
     my $out = [];
 
     tie @$out, 'TM2::TS::Stream::ssh_s', $self->loop,
-	                                 [ map { [ map { $_->[0] } @$_ ] }  @{ $self->addresses } ],   # strip literal wrappers
+	                                 $self->addresses,
 	                                 @_;
     return $out;
 }
@@ -168,7 +177,7 @@ sub new_ssh {
 	foreach my $kw (@SSH_keywords) {
 	    push @options, "-o $kw=$1" if $addr =~ s/;$kw=([^@;]+)//;
 	}
-#warn Dumper \@options;
+#warn "detected ".Dumper \@options;
     }
 #warn "addr $addr";
     $addr =~ /((\w+?)@)?([\w\.]+)(:(\d+))?/
@@ -262,8 +271,8 @@ sub PUSH {
 
 	$elf->{pool} //= [                                                                     # maybe we already have created the ssh connections before
             map {
-	          map { new_ssh( $_, $elf->{loop} ) } @$_                                        # produces a LIST of HASHes 
-            } @{ $elf->{addrs} }                                                               # get each of the LISTs within the ARRAY
+		new_ssh( $_, $elf->{loop} )                                                    # produces a LIST of HASHes 
+                } @{ $elf->{addrs} }                                                           # get each of the LISTs within the ARRAY
 	    ];
 #warn "pool ".Dumper $elf->{pool};
 #warn "pool ".Dumper [

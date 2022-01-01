@@ -42,21 +42,17 @@ if (DONE) {
 	isa_ok( $cc->loop, 'IO::Async::Loop');
 	is_deeply( $cc->addresses, [], $AGENDA.'no addresses' );
 
-	$cc = TM2::TS::Stream::ssh_s::factory->new (loop => $loop, addresses => [ [ TM2::Literal->new( 'localhost' ) ] ]);
+	$cc = TM2::TS::Stream::ssh_s::factory->new (loop => $loop, addresses => [ 'localhost' ]);
 	isa_ok( $cc->loop, 'IO::Async::Loop');
-	is_deeply( $cc->addresses, [ [ TM2::Literal->new( 'localhost' ) ] ], $AGENDA.'addresses' );
+	is_deeply( $cc->addresses, [ 'ssh://localhost' ], $AGENDA.'addresses' );
 #--
 	$cc = TM2::TS::Stream::ssh_s::factory->new (TM2::Literal->new( 'localhost' ), loop => $loop);
 	isa_ok( $cc->loop, 'IO::Async::Loop');
-	is_deeply( $cc->addresses, [ [ TM2::Literal->new( 'localhost' ) ] ], $AGENDA.'addresses' );
+	is_deeply( $cc->addresses, [ 'ssh://localhost' ], $AGENDA.'addresses' );
 #--
 	$cc = TM2::TS::Stream::ssh_s::factory->new (TM2::Literal->new( 'localhost1' ), TM2::Literal->new( 'localhost2' ), loop => $loop);
 	isa_ok( $cc->loop, 'IO::Async::Loop');
-	is_deeply( $cc->addresses, [ [ TM2::Literal->new( 'localhost1' ), TM2::Literal->new( 'localhost2' ) ] ], $AGENDA.'addresses' );
-#--
-	$cc = TM2::TS::Stream::ssh_s::factory->new ([ TM2::Literal->new( 'localhost1' ) ], [ TM2::Literal->new( 'localhost2' ) ], loop => $loop);
-	isa_ok( $cc->loop, 'IO::Async::Loop');
-	is_deeply( $cc->addresses, [ [ TM2::Literal->new( 'localhost1' ) ], [ TM2::Literal->new( 'localhost2' ) ] ], $AGENDA.'addresses' );
+	is_deeply( $cc->addresses, [ 'ssh://localhost1', 'ssh://localhost2' ], $AGENDA.'addresses' );
     }
     if (1) { # single connection
 	my $cc = TM2::TS::Stream::ssh_s::factory->new (TM2::Literal->new( 'localhost' ), loop => $loop);
@@ -75,8 +71,7 @@ if (DONE) {
 
     }
     if (1) { # two hosts, two tuples
-	my $cc = TM2::TS::Stream::ssh_s::factory->new (loop => $loop, addresses => [ [ TM2::Literal->new( 'localhost'    ) ,
-										       TM2::Literal->new( 'localhost:22' ) ] ]);
+	my $cc = TM2::TS::Stream::ssh_s::factory->new (TM2::Literal->new( 'localhost' ), TM2::Literal->new( 'localhost:22' ), loop => $loop);
         my $t = [];
         my $c = $cc->prime ($t);
 	isa_ok( tied @$c, 'TM2::TS::Stream::ssh_s', $AGENDA.'stream type');
@@ -93,7 +88,7 @@ if (DONE) {
 		   [ "XXX", "YYY"]), $AGENDA.'two hosts, two tuples, contents');
     }
     if (1) { # one host x2, two tuples
-	my $cc = TM2::TS::Stream::ssh_s::factory->new (loop => $loop, addresses => [ [ TM2::Literal->new( 'ssh://;multiplicity=2@localhost' ) ] ]);
+	my $cc = TM2::TS::Stream::ssh_s::factory->new (TM2::Literal->new( 'ssh://;multiplicity=2@localhost' ), loop => $loop );
         my $t = [];
         my $c = $cc->prime ($t);
 	isa_ok( tied @$c, 'TM2::TS::Stream::ssh_s', $AGENDA.'stream type');
@@ -107,10 +102,10 @@ if (DONE) {
 #warn "final".Dumper $t;
 	is ((scalar @$t), 2, $AGENDA.'1 batch of 2');
 	ok( eq_set([ map { $_->[0]->[0] } @$t],
-		   [ "XXX", "YYY" ]), $AGENDA.'one hostx2, two tuples, contents');
+		   [ "XXX", "YYY" ]), $AGENDA.'one host x2, two tuples, contents');
     }
     if (1) { # one host x2, two tuples, blocking
-	my $cc = TM2::TS::Stream::ssh_s::factory->new (loop => $loop, addresses => [ [ TM2::Literal->new( 'ssh://;multiplicity=2@localhost' ) ] ]);
+	my $cc = TM2::TS::Stream::ssh_s::factory->new (TM2::Literal->new( 'ssh://;multiplicity=2@localhost' ), loop => $loop );
         my $t = [];
         my $this = [];
 	use TM2::TS::Stream::demote;
@@ -131,8 +126,7 @@ if (DONE) {
 		   [ "XXX", "YYY" ]), $AGENDA.'one hostx2, two tuples, contents');
     }
     if (1) { # two hosts, one invalid, not optional
-	my $cc = TM2::TS::Stream::ssh_s::factory->new (loop => $loop, addresses => [ [ TM2::Literal->new( 'localhost'    ),
-										       TM2::Literal->new( 'xxxlocalhost' ) ] ]);
+	my $cc = TM2::TS::Stream::ssh_s::factory->new (TM2::Literal->new( 'localhost'    ), TM2::Literal->new( 'ssh://;ConnectTimeout=1@192.168.255.255' ), loop => $loop );
         my $t = [];
         my $c = $cc->prime ($t);
 	isa_ok( tied @$c, 'TM2::TS::Stream::ssh_s', $AGENDA.'stream type');
@@ -145,14 +139,12 @@ if (DONE) {
 
 	throws_ok {
 	    $loop->run;
-	} qr/ssh.+out/, $AGENDA.'unreachable host';
-
+	} qr/escalat/, $AGENDA.'unreachable host, not optional';
 	$loop->run;
 	diag "not interested in result";
     }
     if (1) { # two hosts, one invalid, but optional
-	my $cc = TM2::TS::Stream::ssh_s::factory->new (loop => $loop, addresses => [ [ TM2::Literal->new( 'localhost'    ),
-										       TM2::Literal->new( 'ssh://;optional=1@xxxlocalhost' ) ] ]);
+	my $cc = TM2::TS::Stream::ssh_s::factory->new (TM2::Literal->new( 'localhost'    ), TM2::Literal->new( 'ssh://;ConnectTimeout=1;optional=1@192.168.255.255' ), loop => $loop );
         my $t = [];
         my $c = $cc->prime ($t);
 	isa_ok( tied @$c, 'TM2::TS::Stream::ssh_s', $AGENDA.'stream type');
@@ -170,8 +162,8 @@ if (DONE) {
 		   [ "XXX", "YYY" ]), $AGENDA.'one hostx2, two tuples, contents');
     }
     if (1) { # two hosts, two invalid, but optional
-	my $cc = TM2::TS::Stream::ssh_s::factory->new (loop => $loop, addresses => [ [ TM2::Literal->new( 'ssh://;optional=1@yyylocalhost'    ),
-										       TM2::Literal->new( 'ssh://;optional=1@xxxlocalhost' ) ] ]);
+	my $cc = TM2::TS::Stream::ssh_s::factory->new (TM2::Literal->new( 'ssh://;ConnectTimeout=1;optional=1@192.168.255.255'    ),
+						       TM2::Literal->new( 'ssh://;ConnectTimeout=1;optional=1@192.168.255.254' ), loop => $loop);
         my $t = [];
         my $c = $cc->prime ($t);
 	isa_ok( tied @$c, 'TM2::TS::Stream::ssh_s', $AGENDA.'stream type');

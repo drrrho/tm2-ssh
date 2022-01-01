@@ -58,7 +58,7 @@ sub ACTION_inject {
 }
 SUBCLASS
 
-unless (defined getpwnam('poo') ) {
+unless (defined getpwnam('po') ) {
     warn "for testing we need a user 'po'";
     print "
     \$ sudo adduser po
