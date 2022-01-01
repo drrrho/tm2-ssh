@@ -20,26 +20,26 @@ our $VERSION = '0.03';
 =head1 DESCRIPTION
 
 This TempleScript extension provides a vehicle to execute Perl code on a remote machine. When I
-write "Perl code" here, then this also implies "shell code", as it is easy to invoke a shell capture
+write I<Perl code> here, then this also implies I<shell code>, as it is easy to invoke a shell capture
 from Perl:
 
     qx[ls -al]      # also known as "backtick"
 
 Obviously, there are three phases: First open the SSH connection to the remote machine, then execute
 one or more Perl code fragments (the results will be delivered back), then let the SSH connection go
-away. This is easily achieved with a _junction_:
+away. This is easily achieved with a I<junction>:
 
        ( "qx[ls]" )           # the shell command to be executed
      |-{
          ( "localhost" ) |->> ts:fusion( sshp:pool ) => $ssh
-     ||><||                   # signals to TS that the following is not automatically collapsing
+         ||><||               # signals to TS that the following is not automatically collapsing
          <- 2 sec | @ $ssh
      }-|->> io:write2log
 
 In the above case we use a single string as incoming block. For this block first the SSH connection
-will be erected using the `ts:fusion` function. Once that is established that small block is also
-pushed into second stage of the junction. It will pass unharmed the `2 seconds` disabler (while
-starting it) and will move into the `$ssh` stream handler.
+will be erected using the C<ts:fusion> function. Once that is established that small block is also
+pushed into second stage of the junction. It will pass unharmed the "2 seconds" disabler (while
+starting it) and will move into the B<$ssh> stream handler.
 
 Hereby a single tuple will be interpreted as such, that the first value in the tuple is used as Perl
 code, the other values in the tuple as optional arguments. For example,
@@ -58,17 +58,41 @@ The "2 seconds" disabler takes care that the SSH connection is only used for inc
 these 2 seconds. After this the connection will be shut down, unless another block arrived within
 these 2 secs. Any later blocks would open a new connection.
 
-Beware of the default *connection timeout* the binary C<ssh> has, as that can be pretty long. If you
+Beware of the default B<connection timeout> the binary C<ssh> has, as that can be pretty long. If you
 ask to connect to a slow machine (or your DNS is slow), then the disabler might kick in earlier,
 leading to quite erratic and confusing behaviour. You might want to throw in an SSH option (see
 below), such as C<ConnectionTimeout=1>.
 
-
 One can also use TempleScript's mechanism to maintain long-living SSH connections, either by
 increasing the scope of the variable B<$ssh>; or by not disabling the B<$ssh> stream at all.
 
-If you pass in a block of several tuples into B<$ssh>, then the individual tuples will be executed
-separately; but the coherence of the block on the outgoing side will be maintained.
+=head2 Use Cases
+
+=head3 Have one machine do something
+
+     apt-update isa ts:stream
+     return
+       <+ every 6 hours +>
+     | ( "qx[sudo apt update]" )         # the shell command to be executed
+     |-{
+         ( "my.server.home" ) |->> ts:fusion( sshp:pool ) => $ssh
+         |><|
+         <- 60 sec | @ $ssh              # wait for 60 secs to terminate connection
+     }-|->> io:write2log
+
+=head3 Use a few servers for processing
+
+     do-computing isa ts:function
+     return
+       ( "use MachineLearning; relearn(); print q[model updated];" )
+     |-{
+         ( "server1.home",                        # runs all the time
+           "server2.home",                        # runs all the time
+           "ssh://;optional=yes@server3.home",    # that might be running, or not
+         ) |->> ts:fusion( sshp:pool ) => $ssh
+         |><|
+         <- 300 sec | @ $ssh
+     }-|->> io:write2log
 
 =head2 URI Addressing
 
@@ -153,6 +177,9 @@ used for this. All string output will be combined into one string.
 
 Only if responses for B<all> tuples of the block have arrived, the results are pushed downstream as
 one outgoing block.
+
+That way, if you pass in a block of several tuples into B<$ssh>, then the individual tuples will be
+executed separately; but the coherence of the block on the outgoing side will be maintained.
 
 =head2 Error Handling
 
