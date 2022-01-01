@@ -104,12 +104,65 @@ if (DONE) {
 
     if (1) {
 	$tss = TM2::TempleScript::return ($ctx, q{
-( "localhost" ) |->> ts:fusion( ssh:pool )
+( "localhost" ) |->> ts:fusion( sshp:pool )
                });
 	is_singleton( $tss, undef, $AGENDA.'single factory');
 	my $cc = $tss->[0]->[0];
 	isa_ok( $cc, 'TM2::TS::Stream::ssh_s::factory');
-	is_deeply( $cc->addresses, [ [ TM2::Literal->new( 'localhost' ) ] ], $AGENDA.'target addresses');
+	is_deeply( $cc->addresses, [ 'ssh://localhost' ], $AGENDA.'target addresses, canonicalized');
+	isa_ok( $cc->loop, 'IO::Async::Loop');
+#warn Dumper $tss; exit;
+    }
+#--
+    $stm = $sen;
+    $tm = _parse (\$stm, q{
+
+%include file:ssh.ts
+
+sshp:pool
+ssh:ConnectTimeout : "3" ^^ lang:perl
+sshp:multiplicity  : 4
+
+});
+    $ctx = _mk_ctx ($stm);
+    $ctx = [ @$ctx, { '$loop' => $loop } ];
+
+    if (1) {
+	$tss = TM2::TempleScript::return ($ctx, q{
+( "localhost" ) |->> ts:fusion( sshp:pool )
+               });
+	is_singleton( $tss, undef, $AGENDA.'single factory');
+	my $cc = $tss->[0]->[0];
+	isa_ok( $cc, 'TM2::TS::Stream::ssh_s::factory');
+	is_deeply( $cc->addresses, [ 'ssh://;ConnectTimeout=3;multiplicity=4@localhost' ], $AGENDA.'target addresses, with options');
+	isa_ok( $cc->loop, 'IO::Async::Loop');
+#warn Dumper $tss; exit;
+    }
+#--
+    $stm = $sen;
+    $tm = _parse (\$stm, q{
+
+%include file:ssh.ts
+
+sshp:pool
+ssh:ConnectTimeout : "3" ^^ lang:perl
+sshp:multiplicity  : 4
+
+});
+    $ctx = _mk_ctx ($stm);
+    $ctx = [ @$ctx, { '$loop' => $loop } ];
+
+    if (1) {
+	$tss = TM2::TempleScript::return ($ctx, q{
+( "ssh://;ConnectTimeout=5@localhost" ) |->> ts:fusion( sshp:pool )
+               });
+	is_singleton( $tss, undef, $AGENDA.'single factory');
+	my $cc = $tss->[0]->[0];
+	isa_ok( $cc, 'TM2::TS::Stream::ssh_s::factory');
+	TODO: {
+	    local $TODO = 'override';
+	    is_deeply( $cc->addresses, [ 'ssh://;ConnectTimeout=5;multiplicity=4@localhost' ], $AGENDA.'target addresses, with options, merge');
+	}
 	isa_ok( $cc->loop, 'IO::Async::Loop');
 #warn Dumper $tss; exit;
     }
@@ -177,7 +230,7 @@ if (DONE) {
 	    my $cpr = $ap->parse_query (q{ 
    ( "'XXX';", "'YYY';" ) | zigzag
  |-{
-     count | ( "localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
+     count | ( "localhost" ) |->> ts:fusion( sshp:pool ) => $ssh
  ||><||
      <<- 2 sec | @ $ssh |->> io:write2log
  }-| demote |->> ts:tap( $tss )
@@ -203,7 +256,7 @@ if (DONE) {
 	    my $cpr = $ap->parse_query (q{ 
    ( "'XXX';", "'YYY';" ) | zigzag
  |-{
-     count | ( "localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
+     count | ( "localhost" ) |->> ts:fusion( sshp:pool ) => $ssh
  ||><||
      <- 2 sec |_1_| @ $ssh |->> io:write2log
  }-| demote |->> ts:tap( $tss )
@@ -227,7 +280,7 @@ if (DONE) {
 	    my $cpr = $ap->parse_query (q{ 
    ( "qx[ls]" )
  |-{
-     count | ( "localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
+     count | ( "localhost" ) |->> ts:fusion( sshp:pool ) => $ssh
  ||><||
      <<- 2 sec | @ $ssh
  }-|->> ts:tap( $tss )
@@ -274,7 +327,7 @@ if (DONE) {
  |-{
      count | ( "ssh://;ConnectTimeout=1;optional=1@192.168.255.255",
                "localhost" )
-           |->> ts:fusion( ssh:pool ) => $ssh
+           |->> ts:fusion( sshp:pool ) => $ssh
  ||><||
      <<- 4 sec | @ $ssh |->> io:write2log
  }-| demote |->> ts:tap( $ts )
@@ -301,7 +354,7 @@ if (DONE) {
  |-{
      count | ( "ssh://;ConnectTimeout=1;optional=0@192.168.255.255",
                "localhost" )
-           |->> ts:fusion( ssh:pool ) => $ssh
+           |->> ts:fusion( sshp:pool ) => $ssh
  ||><||
      <<- 2 sec | @ $ssh |->> io:write2log
  }-| demote |->> ts:tap( $ts )
@@ -329,7 +382,7 @@ if (DONE) {
      count | ( "ssh://;ConnectTimeout=1;optional=1@192.168.255.255",
                "ssh://;ConnectTimeout=1;optional=1@192.168.255.255",
                "localhost" )
-           |->> ts:fusion( ssh:pool ) => $ssh
+           |->> ts:fusion( sshp:pool ) => $ssh
  ||><||
      <<- 4 sec | @ $ssh |->> io:write2log
  }-| demote |->> ts:tap( $ts )

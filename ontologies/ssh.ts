@@ -1,10 +1,13 @@
 ssh isa ontology
   ~ http://templescript.org/ns/ssh
 
-ssh:pool
+sshp isa ontology
+  ~ http://templescript.org/ns/sshpool
+
+sshp:pool
 
 isa implementation @ lang:perl :
-   class       : ssh:pool
+   class       : sshp:pool
    ts:software : urn:x-perl:TM2::TS::Stream::ssh_s::factory
 
 %cancel

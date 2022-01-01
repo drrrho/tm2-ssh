@@ -109,7 +109,7 @@ if (DONE) {
 	    my $cpr = $ap->parse_query (q{ 
    ( "'XXX';", "'YYY';" ) | zigzag
  |-{
-     count | ( "ssh://po;IdentityFile=t/po_rsa@localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
+     count | ( "ssh://po;IdentityFile=t/po_rsa@localhost" ) |->> ts:fusion( sshp:pool ) => $ssh
  ||><||
      <<- 6 sec | @ $ssh # |->> io:write2log
  }-| demote |->> ts:tap( $tss )
@@ -134,7 +134,7 @@ if (DONE) {
 	    my $cpr = $ap->parse_query (q{ 
    ( "qx[sudo whoami]", "qx[sudo whoami]" ) | zigzag
  |-{
-     count | ( "ssh://po;IdentityFile=t/po_rsa@localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
+     count | ( "ssh://po;IdentityFile=t/po_rsa@localhost" ) |->> ts:fusion( sshp:pool ) => $ssh
  ||><||
      <<- 6 sec | @ $ssh # |->> io:write2log
  }-| demote |->> ts:tap( $tss )
@@ -162,7 +162,7 @@ if (DONE) {
 	    my $cpr = $ap->parse_query (q{ 
    ( "qx[sudo lsof]", "qx[sudo whoami]" ) | zigzag
  |-{
-     count | ( "ssh://po;IdentityFile=t/po_rsa@localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
+     count | ( "ssh://po;IdentityFile=t/po_rsa@localhost" ) |->> ts:fusion( sshp:pool ) => $ssh
  ||><||
      <<- 6 sec | @ $ssh # |->> io:write2log
  }-| demote |->> ts:tap( $tss )
@@ -209,7 +209,7 @@ if (DONE) {
 	{
 	    my $cpr = $ap->parse_query (q{ 
   -{
-     count | ( "ssh://po;IdentityFile=t/po_rsa;multiplicity=3@localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
+     count | ( "ssh://po;IdentityFile=t/po_rsa;multiplicity=3@localhost" ) |->> ts:fusion( sshp:pool ) => $ssh
  ||><||
      <<- 6 sec | @ $ssh # |->> io:write2log
  }-|->> ts:tap( $tss )
@@ -235,7 +235,7 @@ if (DONE) {
 	    my $cpr = $ap->parse_query (q{ 
   -{
      count | ( "ssh://po;IdentityFile=t/po_rsa@localhost",
-	       "ssh://po;IdentityFile=t/po_rsa@localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
+	       "ssh://po;IdentityFile=t/po_rsa@localhost" ) |->> ts:fusion( sshp:pool ) => $ssh
  ||><||
      <<- 6 sec | @ $ssh # |->> io:write2log
  }-|->> ts:tap( $tss )
@@ -260,7 +260,7 @@ if (DONE) {
 	{
 	    my $cpr = $ap->parse_query (q{ 
 _1_|-{
-       ( "ssh://po;IdentityFile=t/po_rsa@localhost" ) |->> ts:fusion( ssh:pool ) => $ssh
+       ( "ssh://po;IdentityFile=t/po_rsa@localhost" ) |->> ts:fusion( sshp:pool ) => $ssh
      |><|
        <<- 2 sec | @ $ssh # |->> io:write2log
      }-|->> ts:tap( $tss )
