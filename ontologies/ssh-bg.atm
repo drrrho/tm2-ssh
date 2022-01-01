@@ -1,0 +1,81 @@
+ssh-protocol isa application-protocol
+overview: https://www.ssh.com/academy/ssh/protocol
+oc: https://www.quora.com/Which-protocol-does-SSH-use
+specifications : https://www.openssh.com/specs.html
+wikipedia : https://en.wikipedia.org/wiki/Secure_Shell
+overview: https://www.keyfactor.com/blog/ssh-protocol/
+overview: https://www.techtarget.com/searchsecurity/definition/Secure-Shell
+overview: https://www.n-able.com/blog/ssh-network-protocol-overview
+overview: https://phoenixnap.com/kb/how-does-ssh-work
+overview: https://www.youtube.com/watch?v=0Sffl7YO0aY
+lecture: http://marjan.fesb.hr/~mcagalj/CNS/Lectures/SSH_protocol.pdf
+overview: https://www.freesoft.org/CIE//Topics/139.htm
+
+isa implementation:
+   concept: ssh-protocol
+   device: ssh-command
+
+ssh-command isa software
+~ https://man.openbsd.org/ssh
+overview: https://www.ssh.com/academy/ssh/command
+quick-start: http://www.atmos.albany.edu/facstaff/rmctc/ssh2/brandenb-Ssh.html
+tutorial: https://www.hostinger.com/tutorials/ssh-tutorial-how-does-ssh-work
+
+isa implementation:
+   concept: ssh-protocol
+   device: openssh-server
+
+openssh-server isa software
+
+
+#--
+
+ssh-feature
+! SSH Feature
+
+
+
+ssh-forwarding isa ssh-feature
+tutorial: https://tldp.org/HOWTO/XDMCP-HOWTO/ssh.html
+
+ssh-tunneling isa ssh-feature
+
+ssh-remote-access isa ssh-feature
+
+%cancel
+
+https://www.google.com/search?source=univ&tbm=isch&q=ssh+protocol&client=opera&fir=BlUe1n2sOCNcDM%252CNi0bzv3TtxRmJM%252C_%253B1P6TVc1ip9ksEM%252CDBOoAuDGbuMrNM%252C_%253Bdwntl-Jbwwe6wM%252CnjZqpRqA64oEmM%252C_%253BPvOg31uT5l0i4M%252C8_tSXllLGYXgaM%252C_%253Bps4e885SJJlT9M%252CtFvJHxAia8cHoM%252C_%253B-uoBqv3mkMyXaM%252CNg0b3seAXsa1lM%252C_%253BKjLZzgYlSna-rM%252CDBOoAuDGbuMrNM%252C_%253BGXNn_GZcDGUVtM%252CFnOtJox-pJWSvM%252C_%253BphHeLP8PnmEYUM%252CBsKBCnTHir94sM%252C_%253BWH2LSmqix6x_OM%252CCW7Z1KUoE61nPM%252C_&usg=AI4_-kTtpWn74oLzd6hPRo_Cpv2htzmMOA&sa=X&ved=2ahUKEwiV7_LiwJD1AhXpQvEDHePOCRAQjJkEegQIOxAC&biw=1294&bih=783&dpr=2
+
+https://wiki.wireshark.org/SSH
+
+SSH Assigned Numbers (RFC 4250)
+SSH Protocol Architecture (RFC 4251)
+SSH Authentication Protocol (RFC 4252)
+SSH Transport Layer Protocol (RFC 4253)
+SSH Connection Protocol (RFC 4254)
+
+https://www.openssh.com/specs.html
+
+
+https://techdocs.akamai.com/netstorage/docs/use-sftp
+
+https://www.guru99.com/telnet-vs-ssh.html
+
+ssh fingerprints in DNS
+https://emanuelduss.ch/2014/11/15/ssh-fingerprints-im-dns-hinterlegen-sshfp-record/
+
+
+ssh-keygen - creates a key pair for public key authentication
+
+ssh-copy-id - configures a public key as authorized on a server
+
+ssh-agent - agent to hold private key for single sign-on
+
+ssh-add - tool to add a key to the agent
+
+scp - file transfer client with RCP-like command interface
+
+sftp - file transfer client with FTP-like command interface
+
+sshd - OpenSSH server
+
